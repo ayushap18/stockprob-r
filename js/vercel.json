@@ -1,0 +1,6 @@
+{
+  "rewrites": [
+    { "source": "/api/outperform", "destination": "/api/outperform.js" },
+    { "source": "/(.*)", "destination": "/" }
+  ]
+}

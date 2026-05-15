@@ -1,0 +1,21 @@
+{
+  "name": "stockprob-r-js",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0 --port 8080",
+    "build": "vite build",
+    "preview": "vite preview --host 0.0.0.0 --port 8080",
+    "test": "node --test tests/*.test.js",
+    "check": "node --check api/outperform.js && find server -name '*.js' -maxdepth 5 -print -exec node --check {} \\;"
+  },
+  "dependencies": {
+    "@vitejs/plugin-react": "latest",
+    "vite": "latest",
+    "react": "latest",
+    "react-dom": "latest",
+    "zod": "^4.4.2"
+  },
+  "devDependencies": {}
+}
