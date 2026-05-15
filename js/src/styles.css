@@ -205,6 +205,25 @@ ol {
   font-weight: 800;
 }
 
+.health {
+  display: inline-flex;
+  margin-top: 16px;
+  border-radius: 8px;
+  padding: 9px 12px;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.health-ok {
+  background: rgba(20, 184, 166, 0.18);
+  color: #99f6e4;
+}
+
+.health-warn {
+  background: rgba(251, 191, 36, 0.18);
+  color: #fde68a;
+}
+
 @media (max-width: 760px) {
   .search, .result-grid, .metrics {
     grid-template-columns: 1fr;

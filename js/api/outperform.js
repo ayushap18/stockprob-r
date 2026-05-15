@@ -2,6 +2,7 @@ import { predictOutperformance } from '../server/models/predict.js';
 
 export default async function handler(request, response) {
   try {
+    response.setHeader?.('Cache-Control', 's-maxage=300, stale-while-revalidate=900');
     const source = request.method === 'POST' ? request.body || {} : request.query || {};
     const ticker = String(source.ticker || '').trim().toUpperCase();
     const horizon = Number(source.horizon || 5);
@@ -19,6 +20,9 @@ export default async function handler(request, response) {
     const result = await predictOutperformance({ ticker, horizon, asOfDate });
     response.status(200).json(result);
   } catch (error) {
-    response.status(error.status || 500).json({ error: error.status ? error.message : 'Internal server error' });
+    response.status(error.status || 500).json({
+      error: error.status ? error.message : 'Internal server error',
+      details: error.details || undefined,
+    });
   }
 }

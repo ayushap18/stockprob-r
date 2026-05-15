@@ -1,4 +1,5 @@
 import { cleanRows } from '../features/math.js';
+import { cachedFetchJson, safeProviderCall } from './resilience.js';
 
 export function createCompositeDataClient() {
   const bloomberg = new BloombergDataClient();
@@ -9,14 +10,20 @@ export function createCompositeDataClient() {
   return {
     async fetchPredictionDataset({ ticker, asOfDate }) {
       const bloombergStatus = await bloomberg.status();
-      const [stockRows, spyRows, qqqRows, vixRows, companyFundamentals, articles] = await Promise.all([
-        publicMarket.fetchDailyPrices(ticker, asOfDate),
-        publicMarket.fetchDailyPrices('SPY', asOfDate),
-        publicMarket.fetchDailyPrices('QQQ', asOfDate),
-        publicMarket.fetchDailyPrices('^VIX', asOfDate),
-        fundamentals.fetchFundamentals(ticker),
-        news.fetchCompanyNews(ticker, asOfDate),
+      const [stockResult, spyResult, qqqResult, vixResult, fundamentalsResult, newsResult] = await Promise.all([
+        safeProviderCall({ name: `${ticker} prices`, fallback: [], task: () => publicMarket.fetchDailyPrices(ticker, asOfDate) }),
+        safeProviderCall({ name: 'SPY prices', fallback: [], task: () => publicMarket.fetchDailyPrices('SPY', asOfDate) }),
+        safeProviderCall({ name: 'QQQ prices', fallback: [], task: () => publicMarket.fetchDailyPrices('QQQ', asOfDate) }),
+        safeProviderCall({ name: 'VIX prices', fallback: [], task: () => publicMarket.fetchDailyPrices('^VIX', asOfDate) }),
+        safeProviderCall({ name: 'fundamentals', fallback: {}, task: () => fundamentals.fetchFundamentals(ticker) }),
+        safeProviderCall({ name: 'news', fallback: [], task: () => news.fetchCompanyNews(ticker, asOfDate) }),
       ]);
+      const stockRows = stockResult.value;
+      const spyRows = spyResult.value;
+      const qqqRows = qqqResult.value;
+      const vixRows = vixResult.value;
+      const companyFundamentals = fundamentalsResult.value;
+      const articles = newsResult.value;
       return {
         stockRows,
         spyRows,
@@ -28,10 +35,13 @@ export function createCompositeDataClient() {
         macro: {},
         providerStatus: {
           bloomberg: bloombergStatus.connected ? 'connected' : 'disconnected',
-          market: stockRows.length && spyRows.length ? 'ok' : 'failed',
-          news: articles.length ? 'ok' : 'degraded',
-          fundamentals: Object.keys(companyFundamentals).length ? 'ok' : 'degraded',
+          market: stockRows.length >= 220 && spyRows.length >= 220 ? 'ok' : 'failed',
+          news: newsResult.status,
+          fundamentals: fundamentalsResult.status,
+          qqq: qqqResult.status,
+          vix: vixResult.status,
         },
+        providerWarnings: [stockResult.warning, spyResult.warning, qqqResult.warning, vixResult.warning, fundamentalsResult.warning, newsResult.warning].filter(Boolean),
       };
     },
     status() {
@@ -60,7 +70,7 @@ export class PublicMarketDataClient {
   async fetchPolygon(ticker, asOfDate) {
     if (!process.env.POLYGON_API_KEY) return [];
     const url = `https://api.polygon.io/v2/aggs/ticker/${encodeURIComponent(ticker)}/range/1/day/2010-01-01/${asOfDate}?adjusted=true&sort=asc&limit=50000&apiKey=${process.env.POLYGON_API_KEY}`;
-    const data = await fetchJson(url).catch(() => null);
+    const data = await cachedFetchJson(url).catch(() => null);
     return cleanRows(
       (data?.results || []).map((row) => ({
         date: new Date(row.t).toISOString().slice(0, 10),
@@ -77,7 +87,7 @@ export class PublicMarketDataClient {
     const symbol = ticker === '^VIX' ? '%5EVIX' : encodeURIComponent(ticker);
     const end = Math.floor((new Date(`${asOfDate}T00:00:00Z`).getTime() + 86_400_000) / 1000);
     const start = Math.floor((new Date(`${asOfDate}T00:00:00Z`).getTime() - 1_000 * 86_400_000) / 1000);
-    const data = await fetchJson(`https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?period1=${start}&period2=${end}&interval=1d&events=history&includeAdjustedClose=true`).catch(() => null);
+    const data = await cachedFetchJson(`https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?period1=${start}&period2=${end}&interval=1d&events=history&includeAdjustedClose=true`).catch(() => null);
     const result = data?.chart?.result?.[0];
     const quote = result?.indicators?.quote?.[0] || {};
     const adjusted = result?.indicators?.adjclose?.[0]?.adjclose || [];
@@ -102,7 +112,7 @@ export class NewsDataClient {
 
   async fetchAlphaVantageNews(ticker, asOfDate) {
     const from = asOfDate.replaceAll('-', '');
-    const data = await fetchJson(`https://www.alphavantage.co/query?function=NEWS_SENTIMENT&tickers=${encodeURIComponent(ticker)}&time_from=${from}T0000&sort=LATEST&limit=50&apikey=${process.env.ALPHA_VANTAGE_API_KEY}`).catch(() => null);
+    const data = await cachedFetchJson(`https://www.alphavantage.co/query?function=NEWS_SENTIMENT&tickers=${encodeURIComponent(ticker)}&time_from=${from}T0000&sort=LATEST&limit=50&apikey=${process.env.ALPHA_VANTAGE_API_KEY}`, { ttlMs: 900_000 }).catch(() => null);
     return (data?.feed || []).map((item) => {
       const tickerSentiment = (item.ticker_sentiment || []).find((entry) => entry.ticker?.toUpperCase() === ticker.toUpperCase());
       return {
@@ -120,9 +130,9 @@ export class FundamentalsDataClient {
   async fetchFundamentals(ticker) {
     if (!process.env.FMP_API_KEY) return {};
     const [profile, ratios, growth] = await Promise.all([
-      fetchJson(`https://financialmodelingprep.com/api/v3/profile/${encodeURIComponent(ticker)}?apikey=${process.env.FMP_API_KEY}`).catch(() => []),
-      fetchJson(`https://financialmodelingprep.com/api/v3/ratios-ttm/${encodeURIComponent(ticker)}?apikey=${process.env.FMP_API_KEY}`).catch(() => []),
-      fetchJson(`https://financialmodelingprep.com/api/v3/financial-growth/${encodeURIComponent(ticker)}?limit=1&apikey=${process.env.FMP_API_KEY}`).catch(() => []),
+      cachedFetchJson(`https://financialmodelingprep.com/api/v3/profile/${encodeURIComponent(ticker)}?apikey=${process.env.FMP_API_KEY}`, { ttlMs: 86_400_000 }).catch(() => []),
+      cachedFetchJson(`https://financialmodelingprep.com/api/v3/ratios-ttm/${encodeURIComponent(ticker)}?apikey=${process.env.FMP_API_KEY}`, { ttlMs: 86_400_000 }).catch(() => []),
+      cachedFetchJson(`https://financialmodelingprep.com/api/v3/financial-growth/${encodeURIComponent(ticker)}?limit=1&apikey=${process.env.FMP_API_KEY}`, { ttlMs: 86_400_000 }).catch(() => []),
     ]);
     const ratio = ratios?.[0] || {};
     const grow = growth?.[0] || {};
@@ -143,18 +153,6 @@ export class FundamentalsDataClient {
       price_to_sales: ratio.priceToSalesRatioTTM,
       price_to_book: ratio.priceToBookRatioTTM,
     };
-  }
-}
-
-async function fetchJson(url) {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 10_000);
-  try {
-    const response = await fetch(url, { signal: controller.signal });
-    if (!response.ok) throw new Error(`Fetch failed ${response.status}`);
-    return response.json();
-  } finally {
-    clearTimeout(timeout);
   }
 }
 

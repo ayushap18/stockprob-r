@@ -50,6 +50,7 @@ stockprob-r/
 - Final signal: `bullish`, `watchlist`, `neutral`, `bearish`, or `avoid`
 - Main drivers and feature importance
 - Walk-forward backtest metrics
+- Provider health and graceful degradation warnings
 
 ## JavaScript App
 
@@ -71,7 +72,20 @@ API:
 
 ```bash
 curl "http://localhost:8080/api/outperform?ticker=MSFT&horizon=5"
+curl "http://localhost:8080/api/health"
 ```
+
+## Robustness Model
+
+The app is designed to fail closed and explain data gaps instead of silently inventing numbers.
+
+- Provider calls are isolated with retries, timeouts, and in-memory caching.
+- If a paid data provider is unavailable, the response includes a provider warning and uses the next configured fallback where possible.
+- If core price history for the ticker or SPY is insufficient, the API returns a structured `503` rather than a misleading prediction.
+- The UI has an error boundary and a live API/provider health indicator.
+- Serverless responses set cache headers for repeated public-data requests.
+
+No market system can guarantee zero failures or perfect accuracy. StockProb-R reduces operational failure modes and makes uncertainty visible.
 
 ## R Engine
 
@@ -114,6 +128,20 @@ The JavaScript engine includes a walk-forward backtest module that:
 - Supports 5, 10, and 20 trading day horizons
 - Compares selected stocks against SPY
 - Includes transaction cost and slippage assumptions
+
+## Accuracy and Calibration
+
+Accuracy is not claimed by default. It must be measured per universe, horizon, rebalance schedule, and provider set.
+
+Recommended validation before relying on a model:
+
+1. Run walk-forward backtests over multiple market regimes.
+2. Compare hit rate against SPY by confidence bucket.
+3. Track calibration: predictions near 60% should win near 60% over a large sample.
+4. Review performance by sector and volatility regime.
+5. Refit or retune weights only with time-split training data.
+
+The repository currently ships a transparent heuristic/logistic baseline. It is intentionally explainable and can be replaced later by trained logistic regression, random forest, XGBoost, LightGBM, or ensemble models after validated training data exists.
 
 ## Deployment
 

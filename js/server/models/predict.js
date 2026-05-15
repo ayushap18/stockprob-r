@@ -31,6 +31,16 @@ export async function predictOutperformance({
   const data = marketData || (await dataClient.fetchPredictionDataset({ ticker: normalizedTicker, asOfDate }));
   const stockRows = cleanRows(data.stockRows);
   const spyRows = cleanRows(data.spyRows);
+  if (stockRows.length < 220 || spyRows.length < 220) {
+    const error = new Error('Insufficient market history for robust outperformance prediction. Need at least 220 daily rows for both ticker and SPY.');
+    error.status = 503;
+    error.details = {
+      stock_rows: stockRows.length,
+      spy_rows: spyRows.length,
+      provider_status: data.providerStatus || {},
+    };
+    throw error;
+  }
   const qqqRows = cleanRows(data.qqqRows || data.spyRows);
   const vixRows = cleanRows(data.vixRows || []);
   const sectorRows = cleanRows(data.sectorRows || data.spyRows);
@@ -102,6 +112,7 @@ export async function rankUniverse({ tickers = [], horizon = 5, asOfDate, dataCl
 
 function buildWarnings(providerStatus, data) {
   const warnings = ['Prediction is probabilistic, not guaranteed'];
+  warnings.push(...(data.providerWarnings || []));
   if (providerStatus.bloomberg === 'disconnected') warnings.push('Bloomberg is not connected; fallback data providers are being used');
   for (const [provider, status] of Object.entries(providerStatus)) {
     if (['failed', 'degraded'].includes(status)) warnings.push(`${provider} data source is ${status}`);

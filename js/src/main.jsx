@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { Component, useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import './styles.css';
 
@@ -10,6 +10,14 @@ function App() {
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [health, setHealth] = useState(null);
+
+  useEffect(() => {
+    fetch('/api/health')
+      .then((response) => response.json())
+      .then(setHealth)
+      .catch(() => setHealth({ ok: false, provider_summary: 'failed' }));
+  }, []);
 
   async function analyze(event) {
     event.preventDefault();
@@ -50,6 +58,9 @@ function App() {
               <button key={symbol} type="button" onClick={() => setTicker(symbol)}>{symbol}</button>
             ))}
           </div>
+          <p className={`health ${health?.ok ? 'health-ok' : 'health-warn'}`}>
+            API {health?.ok ? 'online' : 'checking'} · providers {health?.provider_summary || 'checking'}
+          </p>
           {error && <p className="error">{error}</p>}
         </div>
       </section>
@@ -133,4 +144,33 @@ function signedPct(value) {
   return `${number >= 0 ? '+' : ''}${number.toFixed(1)}%`;
 }
 
-createRoot(document.getElementById('root')).render(<App />);
+class ErrorBoundary extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <main className="dashboard">
+          <div className="panel empty">
+            <h2>Dashboard failed safely.</h2>
+            <p>Refresh the page or call `/api/health` to inspect service status.</p>
+          </div>
+        </main>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+createRoot(document.getElementById('root')).render(
+  <ErrorBoundary>
+    <App />
+  </ErrorBoundary>
+);
