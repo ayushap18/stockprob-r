@@ -18,4 +18,3 @@ export { default as BacktestDrawdownChart } from './BacktestDrawdownChart.jsx';
 export { default as CalibrationCurve } from './CalibrationCurve.jsx';
 export { default as ConfidenceBucketChart } from './ConfidenceBucketChart.jsx';
 export { default as ProviderHealthChart } from './ProviderHealthChart.jsx';
-export { default as SystemCoverageChart } from './SystemCoverageChart.jsx';

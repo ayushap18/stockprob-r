@@ -108,7 +108,7 @@ export function normalizeBacktest(raw) {
 }
 
 export function normalizeProviderHealth(raw) {
-  const providers = Array.isArray(raw) ? raw : raw?.infrastructure?.providers || raw?.providers || [];
+  const providers = raw?.infrastructure?.providers || raw?.providers || [];
   if (Array.isArray(providers)) {
     return providers.map((provider) => ({
       provider: text(provider.label || provider.provider || provider.key, 'Provider'),

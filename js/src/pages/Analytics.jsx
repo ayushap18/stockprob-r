@@ -21,10 +21,8 @@ import {
   RiskConfidenceChart,
   SectorHeatmap,
   SpyComparisonChart,
-  SystemCoverageChart,
   TechnicalBreakdownChart,
 } from '../components/charts/index.js';
-import MemoryStatusPanel from '../components/dashboard/MemoryStatusPanel.jsx';
 import LiveProviderHealthPanel from '../components/live/LiveProviderHealthPanel.jsx';
 import LiveQuoteTicker from '../components/live/LiveQuoteTicker.jsx';
 import LiveStatusBadge from '../components/live/LiveStatusBadge.jsx';
@@ -167,13 +165,7 @@ export default function Analytics() {
             </AnalyticsSection>
 
             <AnalyticsSection title="Provider Health">
-              <div className="analytics-grid halves">
-                <ProviderHealthChart data={bundle.providerHealth.data} isDemo={bundle.providerHealth.isDemo} warnings={bundle.providerHealth.warnings} />
-                <SystemCoverageChart isDemo={bundle.providerHealth.isDemo} warnings={bundle.providerHealth.warnings} />
-              </div>
-              <div className="analytics-grid single">
-                <MemoryStatusPanel />
-              </div>
+              <ProviderHealthChart data={bundle.providerHealth.data} isDemo={bundle.providerHealth.isDemo} warnings={bundle.providerHealth.warnings} />
             </AnalyticsSection>
           </>
         )}
@@ -191,7 +183,6 @@ function AnalyticsNav() {
       </a>
       <nav>
         <a href="/stockprob">Dashboard</a>
-        <a href={`/dashboard?ticker=${encodeURIComponent(new URLSearchParams(window.location.search).get('ticker') || 'MSFT')}`}>Connected</a>
         <a className="active" href="/analytics">Advanced Analytics</a>
         <a href="https://github.com/ayushap18/stockprob-r" target="_blank" rel="noreferrer">GitHub</a>
       </nav>
