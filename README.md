@@ -75,6 +75,7 @@ API:
 ```bash
 curl "http://localhost:8080/api/outperform?ticker=MSFT&horizon=5"
 curl "http://localhost:8080/api/universe?q=micro&limit=10"
+curl "http://localhost:8080/api/model/report?horizon=5"
 curl "http://localhost:8080/api/health"
 ```
 
@@ -93,6 +94,27 @@ VITE_REALTIME_URL=ws://localhost:8091 npm run dev
 
 Supported realtime messages are `analyze`, `rank`, `universe.search`, `watchlist.subscribe`, `watchlist.unsubscribe`, `backtest`, `agent.blank`, `cancel`, `ping`, and `metrics`. The realtime server includes payload limits, heartbeat cleanup, per-client rate limiting, request lifecycle tracking, cancellation, bounded-concurrent ranking, streaming leaderboard updates, watchlist snapshots/updates, backtest progress events, provider status events, and server metrics. Vercel serverless deployment keeps using HTTP fallback because Vercel functions are not long-lived WebSocket servers.
 
+Background worker for queued rank/backtest/provider jobs:
+
+```bash
+cd js
+npm run worker -- --status
+npm run worker -- --once
+```
+
+Local mode drains the in-process memory queue. Set `REDIS_URL` and run `npm run worker` as a separate long-lived process when deploying distributed workers.
+
+Nightly cron orchestration:
+
+```bash
+curl -X POST "http://localhost:8080/api/cron/nightly" \
+  -H "Authorization: Bearer $CRON_SECRET" \
+  -H "Content-Type: application/json" \
+  -d '{"tickers":["MSFT","AAPL","NVDA"],"horizon":5}'
+```
+
+Vercel is configured to call `/api/cron/nightly` at `07:00 UTC` on market weekdays. The endpoint enqueues provider-refresh, ranking, and backtest jobs; set `CRON_SECRET` in production.
+
 ## Robustness Model
 
 The app is designed to fail closed and explain data gaps instead of silently inventing numbers.
@@ -106,6 +128,9 @@ The app is designed to fail closed and explain data gaps instead of silently inv
 - The listed-symbol universe is loaded from NASDAQ Trader symbol directories for NASDAQ, NYSE, NYSE American, NYSE Arca, Cboe BZX, and related listed US securities.
 - WebSocket analysis streams typed progress/result events in Node environments, while HTTP remains the safe deployment fallback.
 - Realtime requests are keyed by `request_id`, can be cancelled, and expose lightweight server metrics for active work.
+- Rank, backtest, analysis, and provider-refresh jobs share a queue contract with local memory fallback and Redis-ready worker status.
+- `/api/cron/nightly` pre-warms provider status, rankings, and backtest work through the queue; production requests should use `CRON_SECRET`.
+- `/api/model/report` returns Brier score, calibration bins, and threshold metrics from supplied realized outcomes. Demo mode is visibly marked and must not be treated as production accuracy evidence.
 - A blank realtime agent channel is available as `agent.blank`; it stores short operational conversation turns and intentionally does not generate trading advice.
 
 No market system can guarantee zero failures or perfect accuracy. StockProb-R reduces operational failure modes and makes uncertainty visible.

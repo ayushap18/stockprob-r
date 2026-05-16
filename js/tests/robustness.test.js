@@ -4,6 +4,7 @@ import healthHandler from '../api/health.js';
 import outperformHandler from '../api/outperform.js';
 import { predictOutperformance } from '../server/models/predict.js';
 import { cachedFetchJson, cacheStats, clearCache, providerSummary, safeProviderCall } from '../server/data/resilience.js';
+import { infrastructureReadiness, requiredProviderPlan } from '../server/config/infrastructure.js';
 
 function mockResponse() {
   return {
@@ -74,6 +75,13 @@ test('health endpoint reports service and provider status', async () => {
   assert.equal(response.body.ok, true);
   assert.equal(response.body.service, 'stockprob-r');
   assert.equal(response.body.providers.bloomberg, 'disconnected');
+  assert.equal(Array.isArray(response.body.infrastructure.providers), true);
+  assert.equal(response.body.infrastructure.capabilities.persistent_feature_store, false);
+  assert.equal(response.body.required_provider_plan.phase_1.includes('POLYGON_API_KEY'), true);
+  assert.equal(response.body.storage.kind, 'memory');
+  assert.equal(response.body.storage.schema_plan.tables.some((table) => table.name === 'stockprob_predictions'), true);
+  assert.equal(response.body.queue.kind, 'memory');
+  assert.equal(response.body.queue.worker_plan.queues.some((queue) => queue.name === 'rank'), true);
 });
 
 test('outperform API returns structured 400 for bad horizon', async () => {
@@ -155,4 +163,23 @@ test('cachedFetchJson clamps cache size and coalesces identical misses', async (
 
 test('providerSummary treats fallback as degraded', () => {
   assert.equal(providerSummary({ bloomberg: 'connected', market: 'fallback' }), 'degraded');
+});
+
+test('infrastructureReadiness maps configured providers and missing env', () => {
+  const previous = process.env.POLYGON_API_KEY;
+  process.env.POLYGON_API_KEY = 'test-key';
+  try {
+    const readiness = infrastructureReadiness({ cacheStats: { entries: 2 } });
+    const polygon = readiness.providers.find((provider) => provider.key === 'polygon');
+    const postgres = readiness.providers.find((provider) => provider.key === 'postgres');
+
+    assert.equal(polygon.configured, true);
+    assert.equal(postgres.configured, false);
+    assert.equal(readiness.capabilities.live_market_data, true);
+    assert.equal(readiness.cache.entries, 2);
+    assert.equal(requiredProviderPlan().phase_2.includes('DATABASE_URL'), true);
+  } finally {
+    if (previous === undefined) delete process.env.POLYGON_API_KEY;
+    else process.env.POLYGON_API_KEY = previous;
+  }
 });

@@ -6,15 +6,17 @@
   "scripts": {
     "dev": "vite --host 0.0.0.0 --port 8080",
     "realtime": "node server/realtime/server.js",
+    "worker": "node server/queue/worker-cli.js",
     "build": "vite build",
     "preview": "vite preview --host 0.0.0.0 --port 8080",
     "test": "node --test tests/*.test.js",
-    "check": "node --check api/outperform.js && node --check api/health.js && node --check api/universe.js && find server -name '*.js' -maxdepth 5 -print -exec node --check {} \\;"
+    "check": "node --check api/outperform.js && node --check api/health.js && node --check api/universe.js && node --check api/rank.js && node --check api/backtest.js && node --check api/model/report.js && node --check api/cron/nightly.js && find server -name '*.js' -maxdepth 5 -print -exec node --check {} \\;"
   },
   "dependencies": {
     "@vitejs/plugin-react": "latest",
     "react": "latest",
     "react-dom": "latest",
+    "recharts": "^3.8.1",
     "vite": "latest",
     "ws": "^8.20.1",
     "zod": "^4.4.2"

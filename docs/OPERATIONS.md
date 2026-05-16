@@ -76,6 +76,28 @@ Protocol:
 
 The realtime server sends heartbeat pings and terminates dead sockets to avoid stale client buildup. It also enforces a 64 KB message limit, per-client rate limiting, and bounded-concurrent ranking work.
 
+## Worker Mode
+
+Queued rank, backtest, provider-refresh, and single-ticker analysis jobs use a shared worker contract. Local development uses the in-process memory queue:
+
+```bash
+cd js
+npm run worker -- --status
+npm run worker -- --once
+```
+
+Production deployments should set `REDIS_URL` and run `npm run worker` as a separate long-lived process beside the HTTP app and realtime server. The worker readiness object never exposes Redis secrets.
+
+## Nightly Cron
+
+Vercel is configured to call `/api/cron/nightly` at `07:00 UTC` on Monday-Friday. The endpoint enqueues:
+
+- `provider-refresh`
+- `rank`
+- `backtest`
+
+Configure `CRON_SECRET` in production and call the endpoint with `Authorization: Bearer $CRON_SECRET`. If `CRON_SECRET` is missing, the endpoint remains usable for local development and returns a warning.
+
 Analysis progress steps:
 
 - `fetching_prices`
@@ -106,6 +128,14 @@ Do not advertise fixed accuracy without a dated backtest report. Use:
 - information ratio
 - market-regime breakdown
 - out-of-sample walk-forward periods
+
+Model diagnostics endpoint:
+
+```bash
+curl "http://localhost:8080/api/model/report?horizon=5"
+```
+
+POST realized prediction outcomes to the same endpoint to produce production calibration reports. GET returns demo diagnostics for UI/API shape only and includes a warning.
 
 ## Provider Configuration
 

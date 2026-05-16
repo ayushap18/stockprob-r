@@ -1,5 +1,6 @@
 import { predictOutperformance } from '../server/models/predict.js';
 import { parseOutperformancePayload } from '../server/routes/stockprob.js';
+import { createStorageAdapter } from '../server/storage/store.js';
 
 export default async function handler(request, response) {
   try {
@@ -17,6 +18,19 @@ export default async function handler(request, response) {
       riskTolerance: parsed.risk_tolerance,
       dataClient: request.dataClient,
     });
+    const storage = request.storage || createStorageAdapter();
+    await storage.savePrediction({
+      ticker: result.ticker,
+      horizon: result.horizon,
+      as_of_date: result.as_of_date,
+      probability_outperform_spy: result.probability_outperform_spy,
+      expected_return: result.expected_return,
+      expected_excess_return: result.expected_excess_return,
+      risk_score: result.risk_score,
+      confidence: result.confidence,
+      signal: result.signal,
+      payload: result,
+    }).catch(() => null);
     response.status(200).json(result);
   } catch (error) {
     response.status(error.status || 500).json({

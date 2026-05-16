@@ -3,6 +3,14 @@
     { "source": "/api/health", "destination": "/api/health.js" },
     { "source": "/api/universe", "destination": "/api/universe.js" },
     { "source": "/api/outperform", "destination": "/api/outperform.js" },
-    { "source": "/(.*)", "destination": "/" }
+    { "source": "/api/rank", "destination": "/api/rank.js" },
+    { "source": "/api/backtest", "destination": "/api/backtest.js" },
+    { "source": "/api/model/report", "destination": "/api/model/report.js" },
+    { "source": "/api/cron/nightly", "destination": "/api/cron/nightly.js" },
+    { "source": "/stockprob", "destination": "/" },
+    { "source": "/stockprob/(.*)", "destination": "/" }
+  ],
+  "crons": [
+    { "path": "/api/cron/nightly", "schedule": "0 7 * * 1-5" }
   ]
 }
