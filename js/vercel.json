@@ -3,6 +3,9 @@
     { "source": "/api/health", "destination": "/api/health.js" },
     { "source": "/api/universe", "destination": "/api/universe.js" },
     { "source": "/api/outperform", "destination": "/api/outperform.js" },
-    { "source": "/(.*)", "destination": "/" }
+    { "source": "/api/rank", "destination": "/api/rank.js" },
+    { "source": "/api/backtest", "destination": "/api/backtest.js" },
+    { "source": "/stockprob", "destination": "/" },
+    { "source": "/stockprob/(.*)", "destination": "/" }
   ]
 }

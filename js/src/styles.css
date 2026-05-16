@@ -170,6 +170,14 @@ a { color: inherit; text-decoration: none; }
   text-transform: uppercase;
 }
 
+.ticker-combobox label small {
+  margin-left: 8px;
+  color: #94a3b8;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+}
+
 .ticker-combobox input {
   width: 100%;
   border: 1px solid rgba(148, 163, 184, 0.22);
@@ -218,6 +226,16 @@ a { color: inherit; text-decoration: none; }
 .suggestions button:hover { background: rgba(8, 145, 178, 0.18); }
 .suggestions span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .suggestions em { color: #94a3b8; font-style: normal; font-size: 11px; font-weight: 800; }
+
+.suggestions-footer {
+  padding: 10px 12px;
+  color: #94a3b8;
+  background: rgba(15, 23, 42, 0.86);
+  font-size: 11px;
+  font-weight: 850;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
 
 .horizon-control {
   display: flex;
@@ -312,6 +330,12 @@ a { color: inherit; text-decoration: none; }
 .state-panel span { overflow-wrap: anywhere; word-break: break-word; }
 .error-state, .insufficient { border-color: rgba(251, 113, 133, 0.34); background: rgba(127, 29, 29, 0.22); }
 .error-state strong, .insufficient strong { color: #fecdd3; }
+.inline-state {
+  margin-top: 0;
+}
+.inline-state.warn {
+  border-color: rgba(251, 191, 36, 0.28);
+}
 .loading-state div { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
 .loading-state div span { border: 1px solid rgba(34, 211, 238, 0.18); border-radius: 999px; padding: 6px 8px; color: #a5f3fc; }
 
@@ -600,19 +624,49 @@ a { color: inherit; text-decoration: none; }
   align-items: stretch;
 }
 
-.fan-chart, .line-chart {
+.chart-frame {
   width: 100%;
-  min-height: 220px;
+  height: 260px;
   border: 1px solid rgba(148, 163, 184, 0.12);
   border-radius: 8px;
   background: rgba(2, 6, 23, 0.38);
+  padding: 8px 8px 4px;
+  overflow: hidden;
 }
 
-.fan-wide { fill: rgba(34, 211, 238, 0.1); }
-.fan-mid { fill: rgba(34, 211, 238, 0.2); }
-.fan-line { fill: none; stroke: #67e8f9; stroke-width: 2.5; }
-.sample-line { fill: none; stroke: rgba(134, 239, 172, 0.8); stroke-width: 1.4; }
-.sample-line.faint { stroke: rgba(148, 163, 184, 0.45); }
+.chart-frame.compact { height: 190px; }
+.chart-frame.bar { height: 220px; }
+
+.chart-frame.skeleton {
+  display: grid;
+  place-items: center;
+  color: #94a3b8;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.chart-tooltip {
+  display: grid;
+  gap: 4px;
+  min-width: 138px;
+  border: 1px solid rgba(34, 211, 238, 0.22);
+  border-radius: 8px;
+  padding: 9px 10px;
+  background: rgba(2, 6, 23, 0.96);
+  box-shadow: 0 14px 38px rgba(0, 0, 0, 0.34);
+}
+
+.chart-tooltip strong {
+  color: #f8fafc;
+  font-size: 11px;
+}
+
+.chart-tooltip span {
+  font-size: 11px;
+  font-weight: 800;
+}
 
 .side-stats, .metric-grid {
   display: grid;
@@ -633,42 +687,7 @@ a { color: inherit; text-decoration: none; }
   gap: 12px;
 }
 
-.line-model, .line-spy {
-  fill: none;
-  stroke-width: 2.4;
-}
-.line-model { stroke: #22d3ee; }
-.line-spy { stroke: rgba(148, 163, 184, 0.68); }
-
-.bar-strip {
-  display: grid;
-  grid-template-columns: repeat(8, 1fr);
-  gap: 10px;
-  align-items: end;
-  min-height: 180px;
-  padding: 12px 4px 0;
-}
-
-.bar-strip div {
-  display: grid;
-  align-items: end;
-  justify-items: center;
-  gap: 8px;
-  height: 160px;
-}
-
-.bar-strip i {
-  width: 100%;
-  max-width: 34px;
-  border-radius: 6px 6px 0 0;
-  background: linear-gradient(180deg, #67e8f9, #0e7490);
-}
-
-.bar-strip.drawdown i {
-  background: linear-gradient(180deg, #fda4af, #be123c);
-}
-
-.bar-strip span { color: #94a3b8; font-size: 11px; font-weight: 800; }
+.recharts-surface { overflow: visible; }
 
 .view-stack {
   display: grid;
@@ -735,6 +754,42 @@ td strong { color: #f8fafc; }
   padding-left: 18px;
   color: #cbd5e1;
   line-height: 1.6;
+}
+
+.readiness-list, .capability-grid, .storage-health {
+  display: grid;
+  gap: 10px;
+}
+
+.readiness-list div, .capability-grid div, .storage-health div {
+  display: grid;
+  grid-template-columns: minmax(180px, 1.2fr) minmax(100px, 0.5fr) minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.11);
+  padding-bottom: 9px;
+}
+
+.capability-grid div {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.storage-health div {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.readiness-list span, .readiness-list small, .capability-grid span, .storage-health span, .storage-health small {
+  min-width: 0;
+  color: #94a3b8;
+  font-size: 12px;
+  font-weight: 800;
+  overflow-wrap: anywhere;
+  text-transform: capitalize;
+}
+
+.capability-grid strong, .storage-health strong {
+  color: #e0f2fe;
+  font-size: 12px;
 }
 
 .incident-log {
@@ -853,6 +908,10 @@ td strong { color: #f8fafc; }
 
   .importance-list b {
     text-align: left;
+  }
+
+  .readiness-list div, .capability-grid div, .storage-health div {
+    grid-template-columns: 1fr;
   }
 
   .suggestions button {

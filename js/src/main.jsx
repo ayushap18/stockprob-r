@@ -1,10 +1,15 @@
-import React, { Component, useEffect, useMemo, useRef, useState } from 'react';
+import React, { Component, Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import './styles.css';
 
 const quickTickers = ['AAPL', 'MSFT', 'NVDA', 'TSLA', 'AMZN', 'GOOGL', 'META', 'JPM'];
+const TICKER_SEARCH_LIMIT = 75;
 const realtimeUrl = import.meta.env.VITE_REALTIME_URL || '';
 const views = ['Dashboard', 'Rankings', 'Backtests', 'Data Health'];
+const ChartRenderer = lazy(() => import('./charts.jsx'));
+const CLIENT_CACHE_LIMIT = 120;
+const CLIENT_CACHE = new Map();
+const CLIENT_IN_FLIGHT = new Map();
 
 const sampleAnalysis = {
   ticker: 'MSFT',
@@ -122,14 +127,19 @@ function App() {
   const [suggestionsOpen, setSuggestionsOpen] = useState(false);
   const [universe, setUniverse] = useState(null);
   const [progress, setProgress] = useState('');
+  const [rankingsData, setRankingsData] = useState(null);
+  const [rankingsLoading, setRankingsLoading] = useState(false);
+  const [rankingsError, setRankingsError] = useState('');
+  const [backtestData, setBacktestData] = useState(null);
+  const [backtestLoading, setBacktestLoading] = useState(false);
+  const [backtestError, setBacktestError] = useState('');
   const comboboxRef = useRef(null);
   const activeRequestRef = useRef(0);
   const transportLabel = useMemo(() => (realtimeUrl ? 'WebSocket realtime' : 'HTTP fallback'), []);
-  const analysis = normalizeAnalysis(result || sampleAnalysis);
+  const analysis = useMemo(() => normalizeAnalysis(result || sampleAnalysis), [result]);
 
   useEffect(() => {
-    fetch('/api/health')
-      .then(readJson)
+    cachedJson('/api/health', { ttlMs: 30_000 })
       .then(setHealth)
       .catch(() => setHealth({ ok: false, provider_summary: 'failed' }));
   }, []);
@@ -145,14 +155,9 @@ function App() {
   useEffect(() => {
     if (!suggestionsOpen) return undefined;
     const query = ticker.trim();
-    if (!query) {
-      setSuggestions([]);
-      return undefined;
-    }
     const controller = new AbortController();
     const timeout = setTimeout(() => {
-      fetch(`/api/universe?q=${encodeURIComponent(query)}&limit=8`, { signal: controller.signal })
-        .then(readJson)
+      cachedJson(`/api/universe?q=${encodeURIComponent(query)}&limit=${TICKER_SEARCH_LIMIT}&include_etfs=false`, { signal: controller.signal, ttlMs: 86_400_000 })
         .then((payload) => {
           if (controller.signal.aborted) return;
           setUniverse(payload);
@@ -169,6 +174,53 @@ function App() {
       controller.abort();
     };
   }, [ticker, suggestionsOpen]);
+
+  useEffect(() => {
+    setRankingsData(null);
+    setRankingsError('');
+    setBacktestData(null);
+    setBacktestError('');
+  }, [horizon]);
+
+  useEffect(() => {
+    if (activeView !== 'Rankings' || rankingsData || rankingsLoading) return undefined;
+    const controller = new AbortController();
+    setRankingsLoading(true);
+    setRankingsError('');
+    cachedJson(`/api/rank?tickers=${encodeURIComponent(quickTickers.slice(0, 6).join(','))}&horizon=${horizon}`, { signal: controller.signal, ttlMs: 300_000 })
+      .then((payload) => {
+        if (controller.signal.aborted) return;
+        if (payload.error) throw new Error(payload.error);
+        setRankingsData(payload);
+      })
+      .catch((requestError) => {
+        if (!controller.signal.aborted) setRankingsError(requestError.message || 'Rankings unavailable');
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setRankingsLoading(false);
+      });
+    return () => controller.abort();
+  }, [activeView, horizon, rankingsData, rankingsLoading]);
+
+  useEffect(() => {
+    if (!['Dashboard', 'Backtests'].includes(activeView) || backtestData || backtestLoading) return undefined;
+    const controller = new AbortController();
+    setBacktestLoading(true);
+    setBacktestError('');
+    cachedJson(`/api/backtest?universe=${encodeURIComponent(['MSFT', 'AAPL', 'NVDA'].join(','))}&horizon=${horizon}`, { signal: controller.signal, ttlMs: 600_000 })
+      .then((payload) => {
+        if (controller.signal.aborted) return;
+        if (payload.error) throw new Error(payload.error);
+        setBacktestData(payload);
+      })
+      .catch((requestError) => {
+        if (!controller.signal.aborted) setBacktestError(requestError.message || 'Backtest unavailable');
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setBacktestLoading(false);
+      });
+    return () => controller.abort();
+  }, [activeView, horizon, backtestData, backtestLoading]);
 
   async function analyze(event) {
     event.preventDefault();
@@ -219,9 +271,9 @@ function App() {
         {loading && <LoadingState progress={progress} />}
         {error && <ErrorState error={error} />}
         <WarningStrip warnings={analysis.warnings} />
-        {activeView === 'Dashboard' && <Dashboard analysis={analysis} isSample={!result} />}
-        {activeView === 'Rankings' && <Rankings />}
-        {activeView === 'Backtests' && <Backtests />}
+        {activeView === 'Dashboard' && <Dashboard analysis={analysis} isSample={!result} backtestData={backtestData} backtestLoading={backtestLoading} />}
+        {activeView === 'Rankings' && <Rankings data={rankingsData} loading={rankingsLoading} error={rankingsError} />}
+        {activeView === 'Backtests' && <Backtests data={backtestData} loading={backtestLoading} error={backtestError} />}
         {activeView === 'Data Health' && <DataHealth health={health} providerStatus={analysis.provider_status} />}
       </section>
     </main>
@@ -269,9 +321,10 @@ function ControlBar({ ticker, setTicker, horizon, setHorizon, analyze, loading, 
     <section className="control-bar">
       <form className="terminal-search" onSubmit={analyze}>
         <div className="ticker-combobox" ref={comboboxRef}>
-          <label>Ticker</label>
+          <label>Ticker <small>{universe?.total_universe ? `${universe.total_universe.toLocaleString()} listed stocks` : 'search all listed US stocks'}</small></label>
           <input
             value={ticker}
+            placeholder="Search any US listed stock"
             onChange={(event) => {
               setTicker(event.target.value.toUpperCase());
               setSuggestionsOpen(true);
@@ -296,6 +349,11 @@ function ControlBar({ ticker, setTicker, horizon, setHorizon, analyze, loading, 
                   <em>{security.exchange}</em>
                 </button>
               ))}
+              {universe?.total_universe && (
+                <div className="suggestions-footer">
+                  Showing {suggestions.length} matches from {universe.total_universe.toLocaleString()} listed US stocks
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -321,7 +379,8 @@ function ControlBar({ ticker, setTicker, horizon, setHorizon, analyze, loading, 
   );
 }
 
-function Dashboard({ analysis, isSample }) {
+function Dashboard({ analysis, isSample, backtestData, backtestLoading }) {
+  const monteCarlo = useMemo(() => buildMonteCarlo(analysis), [analysis]);
   return (
     <section className="dashboard-grid">
       <TickerHeader analysis={analysis} isSample={isSample} />
@@ -354,10 +413,10 @@ function Dashboard({ analysis, isSample }) {
         <ProviderGrid providerStatus={analysis.provider_status} />
       </Panel>
       <Panel title="Monte Carlo Preview" className="span-7">
-        <MonteCarloPanel probability={analysis.probability_outperform_spy} />
+        <MonteCarloPanel probability={analysis.probability_outperform_spy} simulation={monteCarlo} />
       </Panel>
       <Panel title="Backtest Summary" className="span-5">
-        <BacktestPreview />
+        <BacktestPreview data={backtestData} loading={backtestLoading} />
       </Panel>
     </section>
   );
@@ -380,10 +439,13 @@ function TickerHeader({ analysis, isSample }) {
   );
 }
 
-function Rankings() {
+function Rankings({ data, loading, error }) {
+  const rows = data?.rankings?.length ? data.rankings.map((row, index) => normalizeRanking(row, index, data.horizon)) : rankingRows;
   return (
     <section className="view-stack">
-      <SectionHeader eyebrow="Universe ranking" title="Outperformance leaderboard" copy="Dense cross-sectional ranking view for selected US tickers. Values are sample UI data until wired to a batch ranking endpoint." />
+      <SectionHeader eyebrow={data ? 'Live backend ranking' : 'Universe ranking'} title="Outperformance leaderboard" copy="Dense cross-sectional ranking view connected to /api/rank. Sample rows remain visible if provider calls are unavailable." />
+      {loading && <StateInline label="Loading rankings" copy="Calling /api/rank and sorting by alpha score." />}
+      {error && <StateInline label="Rankings fallback active" copy={error} tone="warn" />}
       <div className="table-wrap">
         <table>
           <thead>
@@ -392,7 +454,7 @@ function Rankings() {
             </tr>
           </thead>
           <tbody>
-            {rankingRows.map((row) => (
+            {rows.map((row) => (
               <tr key={row.ticker}>
                 <td>{row.rank}</td>
                 <td><strong>{row.ticker}</strong></td>
@@ -413,16 +475,20 @@ function Rankings() {
   );
 }
 
-function Backtests() {
+function Backtests({ data, loading, error }) {
+  const metrics = data?.metrics ? backtestMetricRows(data.metrics) : backtestMetrics;
+  const curve = data?.equity_curve?.length ? normalizeEquityCurve(data.equity_curve, data.benchmark_equity_curve) : equityCurve;
   return (
     <section className="view-stack">
-      <SectionHeader eyebrow="Walk-forward validation" title="Backtest diagnostics" copy="Backtests are time-split and probabilistic. No accuracy claim is made without dated validation." />
+      <SectionHeader eyebrow={data ? `Backend ${data.data_mode || 'backtest'}` : 'Walk-forward validation'} title="Backtest diagnostics" copy="Backtests are time-split and probabilistic. This view is connected to /api/backtest and keeps sample diagnostics as fallback." />
+      {loading && <StateInline label="Loading backtest" copy="Calling /api/backtest and calculating walk-forward metrics." />}
+      {error && <StateInline label="Backtest fallback active" copy={error} tone="warn" />}
       <div className="backtest-grid">
-        <Panel title="Equity Curve vs SPY" className="span-7"><LineChart data={equityCurve} /></Panel>
-        <Panel title="Drawdown" className="span-5"><DrawdownChart /></Panel>
-        <Panel title="Metrics Grid" className="span-7"><MetricGrid metrics={backtestMetrics} /></Panel>
-        <Panel title="Confidence Buckets" className="span-5"><BucketChart /></Panel>
-        <Panel title="Market Regime Performance" className="span-12"><RegimeBars /></Panel>
+        <Panel title="Equity Curve vs SPY" className="span-7"><LineChart data={curve} /></Panel>
+        <Panel title="Drawdown" className="span-5"><DrawdownChart curve={curve} /></Panel>
+        <Panel title="Metrics Grid" className="span-7"><MetricGrid metrics={metrics} /></Panel>
+        <Panel title="Confidence Buckets" className="span-5"><BucketChart buckets={data?.metrics?.hit_rate_by_confidence_bucket} /></Panel>
+        <Panel title="Market Regime Performance" className="span-12"><RegimeBars regimes={data?.metrics?.performance_by_market_regime} /></Panel>
       </div>
     </section>
   );
@@ -434,7 +500,10 @@ function DataHealth({ health, providerStatus }) {
       <SectionHeader eyebrow="Data quality" title="Provider state and fallback behavior" copy="Degraded providers are surfaced directly. Fallback data keeps the app usable but lowers confidence." />
       <div className="data-health-grid">
         <Panel title="Provider Grid" className="span-5"><ProviderGrid providerStatus={providerStatus} extended /></Panel>
-        <Panel title="Latency Trace" className="span-7"><LatencyChart /></Panel>
+        <Panel title="Provider Quality" className="span-7"><ProviderQualityChart health={health} providerStatus={providerStatus} /></Panel>
+        <Panel title="Configured APIs" className="span-7"><ProviderReadiness health={health} /></Panel>
+        <Panel title="System Capabilities" className="span-5"><CapabilityGrid health={health} /></Panel>
+        <Panel title="Storage Layer" className="span-6"><StorageHealth health={health} /></Panel>
         <Panel title="Fallback Behavior" className="span-6">
           <ul className="plain-list">
             <li>Bloomberg uses official BLPAPI only; webpages are not scraped.</li>
@@ -448,6 +517,67 @@ function DataHealth({ health, providerStatus }) {
         </Panel>
       </div>
     </section>
+  );
+}
+
+function StorageHealth({ health }) {
+  const storage = health?.storage;
+  if (!storage) return <StateInline label="Storage pending" copy="Health endpoint has not returned storage metadata yet." />;
+  return (
+    <div className="storage-health">
+      <div>
+        <span>mode</span>
+        <StatusPill label={storage.kind} status={storage.persistent ? 'ok' : 'fallback'} />
+      </div>
+      <div>
+        <span>persistence</span>
+        <strong>{storage.persistent ? 'durable' : 'memory fallback'}</strong>
+      </div>
+      {storage.counts && Object.entries(storage.counts).map(([label, value]) => (
+        <div key={label}>
+          <span>{label.replaceAll('_', ' ')}</span>
+          <strong>{value}</strong>
+        </div>
+      ))}
+      <small>{storage.message}</small>
+    </div>
+  );
+}
+
+function ProviderReadiness({ health }) {
+  const providers = health?.infrastructure?.providers || [];
+  if (!providers.length) return <StateInline label="Readiness pending" copy="Health endpoint has not returned infrastructure metadata yet." />;
+  return (
+    <div className="readiness-list">
+      {providers.map((provider) => (
+        <div key={provider.key}>
+          <StatusPill label={provider.label} status={provider.configured ? 'ok' : 'fallback'} />
+          <span>{provider.category}</span>
+          <small>{provider.configured ? 'configured' : `missing ${provider.missing_env.join(', ')}`}</small>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function CapabilityGrid({ health }) {
+  const capabilities = health?.infrastructure?.capabilities || {};
+  const cache = health?.infrastructure?.cache;
+  return (
+    <div className="capability-grid">
+      {Object.entries(capabilities).map(([key, enabled]) => (
+        <div key={key}>
+          <span>{key.replaceAll('_', ' ')}</span>
+          <StatusPill label={enabled ? 'ready' : 'missing'} status={enabled ? 'ok' : 'fallback'} />
+        </div>
+      ))}
+      {cache && (
+        <div>
+          <span>server memory cache</span>
+          <strong>{cache.entries} entries</strong>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -487,6 +617,10 @@ function ErrorState({ error }) {
       <span>{error}</span>
     </section>
   );
+}
+
+function StateInline({ label, copy, tone = '' }) {
+  return <section className={`state-panel inline-state ${tone}`}><strong>{label}</strong><span>{copy}</span></section>;
 }
 
 function Panel({ title, children, className = '' }) {
@@ -576,88 +710,93 @@ function ProviderGrid({ providerStatus = {}, extended = false }) {
   );
 }
 
-function MonteCarloPanel({ probability }) {
+function MonteCarloPanel({ probability, simulation }) {
   return (
     <div className="monte-carlo">
-      <FanChart />
+      <FanChart simulation={simulation} />
       <div className="side-stats">
         <MetricCard label="P(out SPY)" value={pct(probability)} />
-        <MetricCard label="P(up)" value="56%" />
-        <MetricCard label="VaR 95%" value="-4.8%" tone="negative" />
-        <MetricCard label="CVaR 95%" value="-7.2%" tone="negative" />
+        <MetricCard label="P(up)" value={pct(simulation.probabilityUp)} />
+        <MetricCard label="VaR 95%" value={signedPct(simulation.var95)} tone="negative" />
+        <MetricCard label="CVaR 95%" value={signedPct(simulation.cvar95)} tone="negative" />
       </div>
     </div>
   );
 }
 
-function BacktestPreview() {
+function BacktestPreview({ data, loading }) {
+  const metrics = data?.metrics ? backtestMetricRows(data.metrics).slice(0, 6) : backtestMetrics.slice(0, 6);
+  const curve = data?.equity_curve?.length ? normalizeEquityCurve(data.equity_curve, data.benchmark_equity_curve) : equityCurve;
   return (
     <div className="backtest-preview">
-      <LineChart data={equityCurve} compact />
-      <MetricGrid metrics={backtestMetrics.slice(0, 6)} compact />
+      {loading && <StateInline label="Loading backtest" copy="Pulling backend walk-forward summary." />}
+      <LineChart data={curve} compact />
+      <MetricGrid metrics={metrics} compact />
     </div>
   );
 }
 
 function LineChart({ data, compact = false }) {
-  const pointsA = toPoints(data.map((row) => row[1]), compact ? 120 : 220, compact ? 72 : 150);
-  const pointsB = toPoints(data.map((row) => row[2]), compact ? 120 : 220, compact ? 72 : 150);
   return (
-    <svg className="line-chart" viewBox={`0 0 ${compact ? 120 : 220} ${compact ? 72 : 150}`} preserveAspectRatio="none">
-      <polyline points={pointsB} className="line-spy" />
-      <polyline points={pointsA} className="line-model" />
-    </svg>
+    <Suspense fallback={<ChartSkeleton compact={compact} />}>
+      <ChartRenderer type="line" data={data} compact={compact} />
+    </Suspense>
   );
 }
 
-function DrawdownChart() {
-  return <BarStrip values={[0.02, 0.05, 0.03, 0.08, 0.04, 0.09, 0.06, 0.03]} negative />;
+function DrawdownChart({ curve }) {
+  return <BarStrip values={drawdownsFromCurve(curve)} negative />;
 }
 
-function BucketChart() {
-  return <BarStrip values={[0.48, 0.53, 0.57, 0.61, 0.66]} labels={['40', '50', '60', '70', '80']} />;
+function BucketChart({ buckets }) {
+  const entries = Object.entries(buckets || { low: 0, medium: 0, high: 0 });
+  return <BarStrip values={entries.map(([, value]) => Number(value || 0))} labels={entries.map(([label]) => label)} />;
 }
 
-function RegimeBars() {
+function RegimeBars({ regimes }) {
+  const entries = Object.entries(regimes || { bullish: 0, sideways: 0, volatile: 0, bearish: 0 });
   return (
     <div className="regime-bars">
-      {[
-        ['Bullish', 0.68],
-        ['Sideways', 0.54],
-        ['Volatile', 0.49],
-        ['Bearish', 0.43],
-      ].map(([label, value]) => <ScoreBar key={label} label={label} value={value} tone={value > 0.55 ? 'positive' : value < 0.5 ? 'negative' : ''} />)}
+      {entries.map(([label, value]) => {
+        const centered = clamp01(0.5 + Number(value || 0) * 10);
+        return <ScoreBar key={label} label={title(label)} value={centered} tone={value > 0 ? 'positive' : value < 0 ? 'negative' : ''} />;
+      })}
     </div>
   );
 }
 
-function LatencyChart() {
-  return <BarStrip values={[0.22, 0.34, 0.27, 0.42, 0.31, 0.29, 0.47, 0.33]} labels={['Mkt', 'News', 'FMP', 'VIX', 'QQQ', 'SEC', 'API', 'Cache']} />;
+function ProviderQualityChart({ health, providerStatus = {} }) {
+  const providers = {
+    api: health?.ok ? 'ok' : 'failed',
+    bloomberg: providerStatus.bloomberg || 'disconnected',
+    market: providerStatus.market || health?.providers?.market || 'fallback',
+    news: providerStatus.news || health?.providers?.news || 'fallback',
+    fundamentals: providerStatus.fundamentals || health?.providers?.fundamentals || 'fallback',
+    qqq: providerStatus.qqq || 'ok',
+    vix: providerStatus.vix || 'ok',
+  };
+  const entries = Object.entries(providers);
+  return <BarStrip values={entries.map(([, status]) => providerScore(status))} labels={entries.map(([label]) => label.slice(0, 4))} />;
 }
 
-function FanChart() {
+function FanChart({ simulation }) {
   return (
-    <svg className="fan-chart" viewBox="0 0 320 160" preserveAspectRatio="none">
-      <path d="M0,92 C70,78 130,64 320,24 L320,136 C130,118 70,104 0,92Z" className="fan-wide" />
-      <path d="M0,92 C70,84 130,76 320,58 L320,112 C130,106 70,98 0,92Z" className="fan-mid" />
-      <path d="M0,92 C70,88 130,86 320,84" className="fan-line" />
-      <path d="M0,92 C80,100 140,82 320,70" className="sample-line" />
-      <path d="M0,92 C70,70 170,88 320,48" className="sample-line faint" />
-    </svg>
+    <Suspense fallback={<ChartSkeleton />}>
+      <ChartRenderer type="fan" simulation={simulation} />
+    </Suspense>
   );
 }
 
 function BarStrip({ values, labels = [], negative = false }) {
   return (
-    <div className={`bar-strip ${negative ? 'drawdown' : ''}`}>
-      {values.map((value, index) => (
-        <div key={`${value}-${index}`}>
-          <i style={{ height: `${Math.max(8, value * 100)}%` }} />
-          {labels[index] && <span>{labels[index]}</span>}
-        </div>
-      ))}
-    </div>
+    <Suspense fallback={<ChartSkeleton bar />}>
+      <ChartRenderer type="bar" values={values} labels={labels} negative={negative} />
+    </Suspense>
   );
+}
+
+function ChartSkeleton({ compact = false, bar = false }) {
+  return <div className={`chart-frame skeleton ${compact ? 'compact' : ''} ${bar ? 'bar' : ''}`}><span>Loading chart engine</span></div>;
 }
 
 function MetricGrid({ metrics, compact = false }) {
@@ -686,10 +825,7 @@ function MiniBar({ value, label }) {
 }
 
 async function analyzeHttp({ ticker, horizon }) {
-  const response = await fetch(`/api/outperform?ticker=${encodeURIComponent(ticker)}&horizon=${horizon}`);
-  const data = await readJson(response);
-  if (!response.ok) throw new Error(data.error || data.message || 'Analysis failed');
-  return data;
+  return cachedJson(`/api/outperform?ticker=${encodeURIComponent(ticker)}&horizon=${horizon}`, { ttlMs: 60_000 });
 }
 
 async function analyzeRealtimeWithFallback({ ticker, horizon, onProgress }) {
@@ -777,6 +913,31 @@ async function readJson(response) {
   }
 }
 
+async function cachedJson(url, { ttlMs = 120_000, signal } = {}) {
+  const now = Date.now();
+  const cached = CLIENT_CACHE.get(url);
+  if (cached && now - cached.storedAt < ttlMs) {
+    CLIENT_CACHE.delete(url);
+    CLIENT_CACHE.set(url, cached);
+    return cached.value;
+  }
+  if (CLIENT_IN_FLIGHT.has(url)) return CLIENT_IN_FLIGHT.get(url);
+
+  const request = fetch(url, { signal })
+    .then(async (response) => {
+      const data = await readJson(response);
+      if (!response.ok || data.error) throw new Error(data.error || data.message || response.statusText || 'Request failed');
+      CLIENT_CACHE.set(url, { value: data, storedAt: Date.now() });
+      while (CLIENT_CACHE.size > CLIENT_CACHE_LIMIT) {
+        CLIENT_CACHE.delete(CLIENT_CACHE.keys().next().value);
+      }
+      return data;
+    })
+    .finally(() => CLIENT_IN_FLIGHT.delete(url));
+  CLIENT_IN_FLIGHT.set(url, request);
+  return request;
+}
+
 function normalizeAnalysis(input) {
   return {
     ...sampleAnalysis,
@@ -791,6 +952,169 @@ function normalizeAnalysis(input) {
     provider_status: input.provider_status || sampleAnalysis.provider_status,
     warnings: input.warnings?.length ? input.warnings : sampleAnalysis.warnings,
   };
+}
+
+function normalizeRanking(row, index, fallbackHorizon) {
+  const providerStatus = row.provider_status || {};
+  const providerValues = Object.values(providerStatus);
+  const provider = row.error ? 'failed' : providerValues.includes('degraded') ? 'degraded' : providerValues.includes('failed') ? 'failed' : providerValues.includes('disconnected') ? 'fallback' : 'ok';
+  return {
+    rank: String(index + 1),
+    ticker: row.ticker,
+    horizon: String(row.horizon || fallbackHorizon || '5d').toUpperCase(),
+    probability: Number(row.probability_outperform_spy ?? 0),
+    excess: Number(row.expected_excess_return ?? 0),
+    alpha: Number(row.alpha_score ?? 0),
+    risk: Number(row.risk_score ?? 1),
+    confidence: Number(row.confidence ?? 0),
+    signal: row.signal || 'avoid',
+    provider,
+  };
+}
+
+function backtestMetricRows(metrics) {
+  return [
+    ['CAGR', signedPct(metrics.cagr)],
+    ['Sharpe', fixed(metrics.sharpe_ratio)],
+    ['Sortino', fixed(metrics.sortino_ratio)],
+    ['Max DD', signedPct(metrics.max_drawdown)],
+    ['Win Rate', pct(metrics.win_rate)],
+    ['Avg Trade', signedPct(metrics.average_return_per_trade)],
+    ['Profit Factor', fixed(metrics.profit_factor)],
+    ['Alpha vs SPY', signedPct(metrics.alpha_vs_spy)],
+    ['Beta vs SPY', fixed(metrics.beta_vs_spy)],
+    ['Info Ratio', fixed(metrics.information_ratio)],
+    ['Turnover', pct(metrics.turnover)],
+    ['Hit Rate', pct(metrics.hit_rate)],
+  ];
+}
+
+function normalizeEquityCurve(curve, benchmarkCurve = []) {
+  return curve.map((point, index) => [index, Number(point.equity || 1), Number(benchmarkCurve[index]?.equity || 1)]);
+}
+
+function buildMonteCarlo(analysis) {
+  const horizon = Math.max(1, Number.parseInt(String(analysis.horizon || '5'), 10) || 5);
+  const annualVol = firstFinite([
+    analysis.features?.technical?.volatility_20d,
+    analysis.features?.technical?.volatility_60d,
+    0.28,
+  ]);
+  const dailyVol = Math.max(0.0025, Math.min(0.08, annualVol / Math.sqrt(252)));
+  const expectedReturn = Number.isFinite(Number(analysis.expected_return)) ? Number(analysis.expected_return) : 0;
+  const dailyDrift = Math.log1p(Math.max(-0.95, expectedReturn)) / horizon;
+  const rng = seededRandom(`${analysis.ticker}-${analysis.as_of_date}-${analysis.horizon}-${analysis.expected_return}-${annualVol}`);
+  const pathCount = 3000;
+  const samplePaths = [];
+  const valuesByDay = Array.from({ length: horizon + 1 }, () => []);
+  const terminalReturns = [];
+
+  for (let pathIndex = 0; pathIndex < pathCount; pathIndex += 1) {
+    let price = 1;
+    const path = [0];
+    valuesByDay[0].push(0);
+    for (let day = 1; day <= horizon; day += 1) {
+      const shock = gaussian(rng);
+      price *= Math.exp(dailyDrift - 0.5 * dailyVol ** 2 + dailyVol * shock);
+      const returnValue = price - 1;
+      valuesByDay[day].push(returnValue);
+      path.push(returnValue);
+    }
+    terminalReturns.push(price - 1);
+    if (samplePaths.length < 12) samplePaths.push(path);
+  }
+
+  const sortedTerminal = [...terminalReturns].sort((a, b) => a - b);
+  const var95 = quantile(sortedTerminal, 0.05);
+  const tail = sortedTerminal.filter((value) => value <= var95);
+  return {
+    pathsRun: pathCount,
+    probabilityUp: terminalReturns.filter((value) => value > 0).length / pathCount,
+    var95,
+    cvar95: tail.length ? tail.reduce((sum, value) => sum + value, 0) / tail.length : var95,
+    percentiles: valuesByDay.map((values, day) => {
+      const sorted = values.sort((a, b) => a - b);
+      return {
+        day,
+        p05: quantile(sorted, 0.05),
+        p25: quantile(sorted, 0.25),
+        p50: quantile(sorted, 0.5),
+        p75: quantile(sorted, 0.75),
+        p95: quantile(sorted, 0.95),
+      };
+    }),
+    samplePaths,
+  };
+}
+
+function drawdownsFromCurve(curve = []) {
+  let peak = 1;
+  return curve.map((row) => {
+    const value = Array.isArray(row) ? Number(row[1]) : Number(row.equity);
+    peak = Math.max(peak, value || 1);
+    return Math.abs((value || 1) / peak - 1);
+  });
+}
+
+function providerScore(status) {
+  const normalized = String(status || '').toLowerCase();
+  if (['ok', 'online', 'connected', 'available', 'green'].includes(normalized)) return 0.95;
+  if (['degraded', 'fallback', 'disconnected', 'checking', 'amber'].includes(normalized)) return 0.45;
+  if (['failed', 'offline', 'red'].includes(normalized)) return 0.08;
+  return 0.3;
+}
+
+function chartScale(values, width, height, pad = 8) {
+  const finiteValues = values.map(Number).filter(Number.isFinite);
+  const min = Math.min(...finiteValues, 0);
+  const max = Math.max(...finiteValues, 0);
+  return {
+    width,
+    x: (index, length) => (index / Math.max(1, length - 1)) * width,
+    y: (value) => height - ((Number(value) - min) / Math.max(0.0001, max - min)) * (height - pad * 2) - pad,
+  };
+}
+
+function seriesPoints(rows, key, scale) {
+  const maxDay = Math.max(...rows.map((row, index) => Number.isFinite(Number(row.day)) ? Number(row.day) : index), 1);
+  return rows.map((row, index) => {
+    const day = Number.isFinite(Number(row.day)) ? Number(row.day) : index;
+    return `${((day / maxDay) * scale.width).toFixed(2)},${scale.y(row[key]).toFixed(2)}`;
+  }).join(' ');
+}
+
+function quantile(sortedValues, q) {
+  if (!sortedValues.length) return 0;
+  const position = (sortedValues.length - 1) * q;
+  const lower = Math.floor(position);
+  const upper = Math.ceil(position);
+  const weight = position - lower;
+  return sortedValues[lower] * (1 - weight) + sortedValues[upper] * weight;
+}
+
+function seededRandom(seedText) {
+  let seed = 2166136261;
+  for (let index = 0; index < String(seedText).length; index += 1) {
+    seed ^= String(seedText).charCodeAt(index);
+    seed = Math.imul(seed, 16777619);
+  }
+  return () => {
+    seed += 0x6D2B79F5;
+    let value = seed;
+    value = Math.imul(value ^ (value >>> 15), value | 1);
+    value ^= value + Math.imul(value ^ (value >>> 7), value | 61);
+    return ((value ^ (value >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function gaussian(rng) {
+  const first = Math.max(Number.MIN_VALUE, rng());
+  const second = rng();
+  return Math.sqrt(-2 * Math.log(first)) * Math.cos(2 * Math.PI * second);
+}
+
+function firstFinite(values) {
+  return values.map(Number).find(Number.isFinite);
 }
 
 function scoreRows(analysis) {
@@ -821,6 +1145,10 @@ function signedPct(value) {
   if (!Number.isFinite(Number(value))) return 'n/a';
   const number = Number(value) * 100;
   return `${number >= 0 ? '+' : ''}${number.toFixed(1)}%`;
+}
+
+function fixed(value) {
+  return Number.isFinite(Number(value)) ? Number(value).toFixed(2) : 'n/a';
 }
 
 function money(value) {

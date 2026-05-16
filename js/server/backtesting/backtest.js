@@ -17,6 +17,7 @@ export async function runWalkForwardBacktest({
   const maxLength = Math.min(...universe.map((ticker) => priceHistoryByTicker[ticker]?.length || 0), spyRows.length);
   const trades = [];
   const equityCurve = [{ date: spyRows[minLookback]?.date || null, equity: 1 }];
+  const benchmarkEquityCurve = [{ date: spyRows[minLookback]?.date || null, equity: 1 }];
   const cost = (transactionCostBps + slippageBps) / 10_000;
 
   for (let index = minLookback; index + Number(horizon) < maxLength; index += step) {
@@ -65,9 +66,16 @@ export async function runWalkForwardBacktest({
     }
 
     const portfolioReturn = periodTrades.reduce((total, trade) => total + trade.net_return, 0) / Math.max(1, periodTrades.length);
+    const spyEntry = spyRows[index]?.close;
+    const spyExit = spyRows[index + Number(horizon)]?.close;
+    const benchmarkReturn = spyEntry > 0 && spyExit > 0 ? spyExit / spyEntry - 1 : 0;
     equityCurve.push({
       date: spyRows[index + Number(horizon)].date,
       equity: equityCurve.at(-1).equity * (1 + portfolioReturn),
+    });
+    benchmarkEquityCurve.push({
+      date: spyRows[index + Number(horizon)].date,
+      equity: benchmarkEquityCurve.at(-1).equity * (1 + benchmarkReturn),
     });
     trades.push(...periodTrades);
   }
@@ -79,6 +87,7 @@ export async function runWalkForwardBacktest({
     top_n: topN,
     trades,
     equity_curve: equityCurve,
+    benchmark_equity_curve: benchmarkEquityCurve,
     metrics: calculateBacktestMetrics({ trades, equityCurve, benchmarkReturns: trades.map((trade) => trade.spy_return) }),
     warnings: ['Backtest uses walk-forward features only; results depend on available historical universe and provider data'],
   };
