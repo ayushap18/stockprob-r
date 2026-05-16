@@ -5,7 +5,11 @@
     { "source": "/api/outperform", "destination": "/api/outperform.js" },
     { "source": "/api/rank", "destination": "/api/rank.js" },
     { "source": "/api/backtest", "destination": "/api/backtest.js" },
+    { "source": "/api/cron/nightly", "destination": "/api/cron/nightly.js" },
     { "source": "/stockprob", "destination": "/" },
     { "source": "/stockprob/(.*)", "destination": "/" }
+  ],
+  "crons": [
+    { "path": "/api/cron/nightly", "schedule": "0 7 * * 1-5" }
   ]
 }
