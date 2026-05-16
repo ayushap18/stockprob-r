@@ -4,6 +4,7 @@ import { pathToFileURL } from 'node:url';
 
 const apiRoutes = new Map([
   ['/api/outperform', './api/outperform.js'],
+  ['/api/price', './api/price.js'],
   ['/api/health', './api/health.js'],
   ['/api/universe', './api/universe.js'],
   ['/api/rank', './api/rank.js'],

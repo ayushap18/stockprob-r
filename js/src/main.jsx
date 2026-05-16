@@ -7,6 +7,7 @@ const TICKER_SEARCH_LIMIT = 75;
 const realtimeUrl = import.meta.env.VITE_REALTIME_URL || '';
 const views = ['Dashboard', 'Rankings', 'Backtests', 'Data Health'];
 const ChartRenderer = lazy(() => import('./charts.jsx'));
+const Analytics = lazy(() => import('./pages/Analytics.jsx'));
 const CLIENT_CACHE_LIMIT = 120;
 const CLIENT_CACHE = new Map();
 const CLIENT_IN_FLIGHT = new Map();
@@ -149,6 +150,13 @@ const fallbackModelReport = {
 };
 
 function App() {
+  if (window.location.pathname.startsWith('/analytics')) {
+    return (
+      <Suspense fallback={<main className="terminal-shell"><section className="state-panel loading-state"><strong>Loading analytics</strong></section></main>}>
+        <Analytics />
+      </Suspense>
+    );
+  }
   const [activeView, setActiveView] = useState('Dashboard');
   const [ticker, setTicker] = useState('MSFT');
   const [horizon, setHorizon] = useState(5);
@@ -310,7 +318,7 @@ function App() {
 
   return (
     <main className="terminal-shell">
-      <TopNav activeView={activeView} setActiveView={setActiveView} health={health} />
+      <TopNav activeView={activeView} setActiveView={setActiveView} health={health} ticker={ticker} />
       <section className="terminal-layout">
         <ControlBar
           ticker={ticker}
@@ -354,7 +362,7 @@ function App() {
   }
 }
 
-function TopNav({ activeView, setActiveView, health }) {
+function TopNav({ activeView, setActiveView, health, ticker = 'MSFT' }) {
   return (
     <header className="top-nav">
       <div className="brand">
@@ -370,6 +378,7 @@ function TopNav({ activeView, setActiveView, health }) {
             {view}
           </button>
         ))}
+        <a href={`/analytics?ticker=${encodeURIComponent(ticker || 'MSFT')}`}>Advanced Analytics</a>
       </nav>
       <div className="nav-actions">
         <a href="https://github.com/ayushap18/stockprob-r" target="_blank" rel="noreferrer">GitHub</a>

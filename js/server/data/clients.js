@@ -66,8 +66,16 @@ export class BloombergDataClient {
 export class PublicMarketDataClient {
   async fetchDailyPrices(ticker, asOfDate) {
     const polygonRows = await this.fetchPolygon(ticker, asOfDate);
-    if (polygonRows.length) return polygonRows;
-    return this.fetchYahoo(ticker, asOfDate);
+    if (polygonRows.length) {
+      this.lastSource = 'polygon';
+      return polygonRows;
+    }
+    const yfinanceRows = await this.fetchYFinance(ticker, asOfDate);
+    if (yfinanceRows.length) {
+      this.lastSource = 'yfinance-yahoo-chart';
+      this.lastWarning = 'Using yfinance-compatible Yahoo Finance public chart fallback for development data';
+    }
+    return yfinanceRows;
   }
 
   async fetchPolygon(ticker, asOfDate) {
@@ -86,7 +94,7 @@ export class PublicMarketDataClient {
     );
   }
 
-  async fetchYahoo(ticker, asOfDate) {
+  async fetchYFinance(ticker, asOfDate) {
     const symbol = ticker === '^VIX' ? '%5EVIX' : encodeURIComponent(ticker);
     const end = Math.floor((new Date(`${asOfDate}T00:00:00Z`).getTime() + 86_400_000) / 1000);
     const start = Math.floor((new Date(`${asOfDate}T00:00:00Z`).getTime() - 1_000 * 86_400_000) / 1000);

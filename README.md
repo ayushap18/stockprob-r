@@ -74,6 +74,7 @@ API:
 
 ```bash
 curl "http://localhost:8080/api/outperform?ticker=MSFT&horizon=5"
+curl "http://localhost:8080/api/price?ticker=MSFT&limit=520"
 curl "http://localhost:8080/api/universe?q=micro&limit=10"
 curl "http://localhost:8080/api/model/report?horizon=5"
 curl "http://localhost:8080/api/health"
@@ -150,10 +151,11 @@ Bloomberg is supported only through official Bloomberg API / BLPAPI-style config
 Fallback providers:
 
 - Polygon.io for adjusted OHLCV
-- Yahoo Finance chart endpoint for development fallback
+- yfinance-compatible Yahoo Finance chart endpoint for development fallback
 - NASDAQ Trader listed-symbol directories for searchable US security coverage
 - Alpha Vantage for public news sentiment
 - Financial Modeling Prep for fundamentals
+- FRED for macro rates, inflation, labor, and yield-curve context
 
 Environment variables:
 
@@ -164,9 +166,54 @@ BLOOMBERG_PORT=8194
 POLYGON_API_KEY=
 ALPHA_VANTAGE_API_KEY=
 FMP_API_KEY=
+FRED_API_KEY=
 ```
 
 If Bloomberg or paid providers are not configured, the app remains usable with fallback sources and returns explicit provider warnings.
+
+## Advanced Charts and Analytics
+
+The advanced charting route is available at:
+
+```text
+https://stockprob-r.vercel.app/analytics?ticker=MSFT
+```
+
+Local route:
+
+```text
+http://localhost:8080/analytics?ticker=MSFT
+```
+
+Chart stack:
+
+- Recharts: dashboard cards, probability trends, expected return, SPY comparison, risk/confidence, equity and drawdown basics.
+- TradingView Lightweight Charts: candlestick/OHLC and volume price analysis.
+- Plotly.js: Monte Carlo fan chart, terminal-return histogram, percentile bands, VaR and CVaR views.
+- Apache ECharts: feature importance, heatmaps, ranking scatter plots, calibration curves, macro regime, provider health views.
+
+The Analytics page shows:
+
+- Price analysis: OHLC candlesticks, volume, stock cumulative return versus SPY, and excess return.
+- Prediction analysis: probability trend, expected return, expected excess return, risk, and confidence.
+- Monte Carlo simulation: GBM percentile bands, sampled paths, final-return distribution, probability of profit, VaR 5%, expected shortfall, median final price, and estimated drawdown.
+- Feature analysis: model feature importance, technical score components, fundamental score components, news sentiment timeline, and macro regime chart.
+- Market ranking: sector heatmap and expected-return/probability scatter view.
+- Backtest: strategy equity curve versus SPY, drawdown, calibration curve, and confidence-bucket hit-rate chart.
+- Provider health: API/provider status, fallback counts, warnings, and refresh state.
+
+Fallback behavior:
+
+- Chart data loaders try existing backend endpoints first, including `/api/outperform`, `/api/price`, `/api/rank`, `/api/backtest`, `/api/model/report`, and `/api/health`.
+- If a chart endpoint fails or returns incomplete data, the page renders deterministic demo data seeded by ticker symbol.
+- Demo/fallback sections are visibly labeled in the UI.
+- Demo chart data is stable across renders so screenshots, tests, and UI review do not shift randomly.
+
+Data policy:
+
+- The app does not scrape hidden/private/paid pages.
+- Bloomberg webpages and broker dashboards are never scraped.
+- Production data should use official APIs, public datasets, or app-generated derived features only.
 
 ## Backtesting
 
