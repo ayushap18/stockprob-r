@@ -479,30 +479,30 @@ function Dashboard({ analysis, isSample, backtestData, backtestLoading, modelRep
         <MetricCard label="Risk" value={`${Math.round(analysis.risk_score * 100)} · ${title(analysis.risk_label)}`} tone={riskTone(analysis.risk_score)} detail="Composite market + event risk" />
         <MetricCard label="Confidence" value={pct(analysis.confidence)} detail="Data completeness adjusted" />
       </section>
-      <Panel title="Probability Gauge" className="span-4">
+      <Panel title="Probability Of Outperforming SPY (5D)" className="span-3">
         <RadialGauge value={analysis.probability_outperform_spy} />
       </Panel>
-      <Panel title="Score Breakdown" className="span-4">
+      <Panel title="Score Breakdown" className="span-3">
         {scoreRows(analysis).map((row) => <ScoreBar key={row.label} {...row} />)}
       </Panel>
-      <Panel title="Main Drivers" className="span-4">
+      <Panel title="Top Drivers" className="span-3">
         <ol className="driver-list">
           {analysis.main_drivers.map((driver, index) => <li key={driver}><span>{index + 1}</span>{driver}</li>)}
         </ol>
       </Panel>
-      <Panel title="Feature Importance" className="span-5">
+      <Panel title="Feature Importance" className="span-3">
         <FeatureImportance rows={analysis.feature_importance} />
       </Panel>
-      <Panel title="Recent News Sentiment" className="span-4">
+      <Panel title="Recent News (7D)" className="span-3">
         <NewsFeed items={analysis.recent_news?.length ? analysis.recent_news : newsItems} />
       </Panel>
-      <Panel title="Provider Health" className="span-3">
+      <Panel title="Provider Health" className="span-2">
         <ProviderGrid providerStatus={analysis.provider_status} />
       </Panel>
-      <Panel title="Monte Carlo Preview" className="span-7">
+      <Panel title="Monte Carlo Simulation (5D)" className="span-4">
         <MonteCarloPanel probability={analysis.probability_outperform_spy} simulation={monteCarlo} />
       </Panel>
-      <Panel title="Backtest Summary" className="span-5">
+      <Panel title="Backtest (60D Preview)" className="span-3">
         <BacktestPreview data={backtestData} loading={backtestLoading} />
       </Panel>
       <Panel title="Model Diagnostics" className="span-12">
@@ -731,7 +731,9 @@ function WarningStrip({ warnings = [] }) {
   if (!warnings.length) return null;
   return (
     <section className="warning-strip">
-      {warnings.slice(0, 6).map((warning) => <span key={warning}>{warning}</span>)}
+      {warnings.slice(0, 4).map((warning) => <span key={warning}>{warning}</span>)}
+      <a href="https://github.com/ayushap18/stockprob-r" target="_blank" rel="noreferrer">Learn more ↗</a>
+      <button type="button" aria-label="Dismiss warnings">×</button>
     </section>
   );
 }
@@ -884,8 +886,7 @@ function BacktestPreview({ data, loading }) {
   const metrics = data?.metrics ? backtestMetricRows(data.metrics).slice(0, 6) : backtestMetrics.slice(0, 6);
   const curve = data?.equity_curve?.length ? normalizeEquityCurve(data.equity_curve, data.benchmark_equity_curve) : equityCurve;
   return (
-    <div className="backtest-preview">
-      {loading && <StateInline label="Loading backtest" copy="Pulling backend walk-forward summary." />}
+    <div className={`backtest-preview ${loading ? 'refreshing' : ''}`}>
       <LineChart data={curve} compact />
       <MetricGrid metrics={metrics} compact />
     </div>
