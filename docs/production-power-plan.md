@@ -32,6 +32,8 @@ Status: queue contract, rank/backtest job metadata, worker plan, health visibili
 - Add model registry, calibration reports, Brier score, SHAP explanations, and walk-forward retraining.
 - Store every prediction and score it later against realized SPY outperformance.
 
+Status: baseline model diagnostics are implemented with Brier score, calibration bins, threshold metrics, `/api/model/report`, and dashboard diagnostics. Next production step is connecting persisted prediction outcomes from Postgres to this report and adding a Python model worker for tree models and SHAP.
+
 ## Phase 5: Product Hardening
 
 - Add auth, saved watchlists, scheduled alerts, provider SLA monitoring, and incident history.

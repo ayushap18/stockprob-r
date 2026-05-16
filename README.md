@@ -75,6 +75,7 @@ API:
 ```bash
 curl "http://localhost:8080/api/outperform?ticker=MSFT&horizon=5"
 curl "http://localhost:8080/api/universe?q=micro&limit=10"
+curl "http://localhost:8080/api/model/report?horizon=5"
 curl "http://localhost:8080/api/health"
 ```
 
@@ -129,6 +130,7 @@ The app is designed to fail closed and explain data gaps instead of silently inv
 - Realtime requests are keyed by `request_id`, can be cancelled, and expose lightweight server metrics for active work.
 - Rank, backtest, analysis, and provider-refresh jobs share a queue contract with local memory fallback and Redis-ready worker status.
 - `/api/cron/nightly` pre-warms provider status, rankings, and backtest work through the queue; production requests should use `CRON_SECRET`.
+- `/api/model/report` returns Brier score, calibration bins, and threshold metrics from supplied realized outcomes. Demo mode is visibly marked and must not be treated as production accuracy evidence.
 - A blank realtime agent channel is available as `agent.blank`; it stores short operational conversation turns and intentionally does not generate trading advice.
 
 No market system can guarantee zero failures or perfect accuracy. StockProb-R reduces operational failure modes and makes uncertainty visible.

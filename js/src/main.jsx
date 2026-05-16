@@ -133,6 +133,9 @@ function App() {
   const [backtestData, setBacktestData] = useState(null);
   const [backtestLoading, setBacktestLoading] = useState(false);
   const [backtestError, setBacktestError] = useState('');
+  const [modelReport, setModelReport] = useState(null);
+  const [modelReportLoading, setModelReportLoading] = useState(false);
+  const [modelReportError, setModelReportError] = useState('');
   const comboboxRef = useRef(null);
   const activeRequestRef = useRef(0);
   const transportLabel = useMemo(() => (realtimeUrl ? 'WebSocket realtime' : 'HTTP fallback'), []);
@@ -180,6 +183,8 @@ function App() {
     setRankingsError('');
     setBacktestData(null);
     setBacktestError('');
+    setModelReport(null);
+    setModelReportError('');
   }, [horizon]);
 
   useEffect(() => {
@@ -221,6 +226,26 @@ function App() {
       });
     return () => controller.abort();
   }, [activeView, horizon, backtestData, backtestLoading]);
+
+  useEffect(() => {
+    if (!['Dashboard', 'Backtests', 'Data Health'].includes(activeView) || modelReport || modelReportLoading) return undefined;
+    const controller = new AbortController();
+    setModelReportLoading(true);
+    setModelReportError('');
+    cachedJson(`/api/model/report?horizon=${horizon}`, { signal: controller.signal, ttlMs: 600_000 })
+      .then((payload) => {
+        if (controller.signal.aborted) return;
+        if (payload.error) throw new Error(payload.error);
+        setModelReport(payload);
+      })
+      .catch((requestError) => {
+        if (!controller.signal.aborted) setModelReportError(requestError.message || 'Model diagnostics unavailable');
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setModelReportLoading(false);
+      });
+    return () => controller.abort();
+  }, [activeView, horizon, modelReport, modelReportLoading]);
 
   async function analyze(event) {
     event.preventDefault();
@@ -271,7 +296,7 @@ function App() {
         {loading && <LoadingState progress={progress} />}
         {error && <ErrorState error={error} />}
         <WarningStrip warnings={analysis.warnings} />
-        {activeView === 'Dashboard' && <Dashboard analysis={analysis} isSample={!result} backtestData={backtestData} backtestLoading={backtestLoading} />}
+        {activeView === 'Dashboard' && <Dashboard analysis={analysis} isSample={!result} backtestData={backtestData} backtestLoading={backtestLoading} modelReport={modelReport} modelReportLoading={modelReportLoading} modelReportError={modelReportError} />}
         {activeView === 'Rankings' && <Rankings data={rankingsData} loading={rankingsLoading} error={rankingsError} />}
         {activeView === 'Backtests' && <Backtests data={backtestData} loading={backtestLoading} error={backtestError} />}
         {activeView === 'Data Health' && <DataHealth health={health} providerStatus={analysis.provider_status} />}
@@ -379,7 +404,7 @@ function ControlBar({ ticker, setTicker, horizon, setHorizon, analyze, loading, 
   );
 }
 
-function Dashboard({ analysis, isSample, backtestData, backtestLoading }) {
+function Dashboard({ analysis, isSample, backtestData, backtestLoading, modelReport, modelReportLoading, modelReportError }) {
   const monteCarlo = useMemo(() => buildMonteCarlo(analysis), [analysis]);
   return (
     <section className="dashboard-grid">
@@ -417,6 +442,9 @@ function Dashboard({ analysis, isSample, backtestData, backtestLoading }) {
       </Panel>
       <Panel title="Backtest Summary" className="span-5">
         <BacktestPreview data={backtestData} loading={backtestLoading} />
+      </Panel>
+      <Panel title="Model Diagnostics" className="span-12">
+        <ModelDiagnostics report={modelReport} loading={modelReportLoading} error={modelReportError} />
       </Panel>
     </section>
   );
@@ -772,6 +800,33 @@ function BacktestPreview({ data, loading }) {
       {loading && <StateInline label="Loading backtest" copy="Pulling backend walk-forward summary." />}
       <LineChart data={curve} compact />
       <MetricGrid metrics={metrics} compact />
+    </div>
+  );
+}
+
+function ModelDiagnostics({ report, loading, error }) {
+  if (loading) return <StateInline label="Model diagnostics loading" copy="Fetching calibration and Brier score from /api/model/report." />;
+  if (error) return <StateInline label="Model diagnostics fallback" copy={error} tone="warn" />;
+  if (!report) return <StateInline label="Model diagnostics pending" copy="Calibration report has not loaded yet." />;
+  const bins = (report.calibration_bins || []).filter((bin) => bin.count > 0).slice(0, 8);
+  return (
+    <div className="model-diagnostics">
+      <div className="diagnostic-metrics">
+        <MetricCard label="Brier score" value={formatNumber(report.metrics?.brier_score)} detail="Lower is better" />
+        <MetricCard label="Hit rate" value={pct(report.metrics?.hit_rate)} detail={`${report.sample_size} scored outcomes`} />
+        <MetricCard label="Calibration error" value={formatNumber(report.metrics?.mean_calibration_error)} detail={title(report.reliability)} />
+        <MetricCard label="Data mode" value={title(report.data_mode)} detail={report.model_version} />
+      </div>
+      <div className="calibration-bars">
+        {bins.map((bin) => (
+          <div key={bin.bin}>
+            <span>{Math.round(bin.lower * 100)}-{Math.round(bin.upper * 100)}%</span>
+            <i><em style={{ width: `${clamp01(bin.observed_rate || 0) * 100}%` }} /></i>
+            <b>{pct(bin.observed_rate)} · n={bin.count}</b>
+          </div>
+        ))}
+      </div>
+      <small>{report.warnings?.[0]}</small>
     </div>
   );
 }
@@ -1189,6 +1244,10 @@ function signedPct(value) {
 
 function fixed(value) {
   return Number.isFinite(Number(value)) ? Number(value).toFixed(2) : 'n/a';
+}
+
+function formatNumber(value) {
+  return Number.isFinite(Number(value)) ? Number(value).toFixed(3) : 'n/a';
 }
 
 function money(value) {

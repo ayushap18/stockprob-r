@@ -687,6 +687,49 @@ a { color: inherit; text-decoration: none; }
   gap: 12px;
 }
 
+.model-diagnostics {
+  display: grid;
+  gap: 14px;
+}
+
+.diagnostic-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.calibration-bars {
+  display: grid;
+  gap: 9px;
+}
+
+.calibration-bars div {
+  display: grid;
+  grid-template-columns: 80px minmax(0, 1fr) 96px;
+  gap: 10px;
+  align-items: center;
+}
+
+.calibration-bars span, .calibration-bars b, .model-diagnostics small {
+  color: #94a3b8;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.calibration-bars i {
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.9);
+}
+
+.calibration-bars em {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #22d3ee, #86efac);
+}
+
 .recharts-surface { overflow: visible; }
 
 .view-stack {
@@ -903,7 +946,11 @@ td strong { color: #f8fafc; }
     max-width: 100%;
   }
 
-  .kpi-grid, .metric-grid, .side-stats, .regime-bars {
+  .kpi-grid, .metric-grid, .side-stats, .regime-bars, .diagnostic-metrics {
+    grid-template-columns: 1fr;
+  }
+
+  .calibration-bars div {
     grid-template-columns: 1fr;
   }
 

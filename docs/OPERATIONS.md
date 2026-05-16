@@ -129,6 +129,14 @@ Do not advertise fixed accuracy without a dated backtest report. Use:
 - market-regime breakdown
 - out-of-sample walk-forward periods
 
+Model diagnostics endpoint:
+
+```bash
+curl "http://localhost:8080/api/model/report?horizon=5"
+```
+
+POST realized prediction outcomes to the same endpoint to produce production calibration reports. GET returns demo diagnostics for UI/API shape only and includes a warning.
+
 ## Provider Configuration
 
 ```bash
