@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import universeHandler from '../api/universe.js';
 import { parseNasdaqListed, parseOtherListed, searchUniverse } from '../server/data/universe.js';
 import { createRealtimeMessage, validateRealtimeRequest } from '../server/realtime/protocol.js';
-import { createRateLimiter, handleRealtimeMessage, mapWithConcurrency } from '../server/realtime/server.js';
+import { createRateLimiter, handleRealtimeMessage, mapWithConcurrency, realtimeMetrics } from '../server/realtime/server.js';
 
 function mockResponse() {
   return {
@@ -77,6 +77,27 @@ test('universe API returns structured search results', async () => {
   assert.equal(response.body.coverage, 'nasdaq-trader-listed-us-securities');
 });
 
+test('universe API falls back when injected universe client fails', async () => {
+  const response = mockResponse();
+  await universeHandler(
+    {
+      method: 'GET',
+      query: { q: 'AAPL', limit: '5' },
+      universeClient: {
+        fetchUniverse: async () => {
+          throw new Error('custom universe unavailable');
+        },
+      },
+    },
+    response
+  );
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(response.body.coverage, 'fallback-major-us-securities');
+  assert.equal(response.body.results[0].symbol, 'AAPL');
+  assert.equal(response.body.warnings.some((warning) => warning.includes('custom universe unavailable')), true);
+});
+
 test('realtime protocol validates requests and creates typed messages', () => {
   assert.deepEqual(validateRealtimeRequest({ ticker: 'msft', horizon: 10 }), { ticker: 'MSFT', horizon: 10 });
   assert.throws(() => validateRealtimeRequest({ ticker: 'MSFT', horizon: 30 }), /horizon/);
@@ -133,4 +154,17 @@ test('rate limiter rejects bursts past configured realtime budget', () => {
   assert.equal(limiter.allow('client-a'), true);
   assert.equal(limiter.allow('client-a'), false);
   assert.equal(limiter.allow('client-b'), true);
+});
+
+test('realtime metrics reports active work and clears after completion', async () => {
+  const messages = [];
+  const slowPredictor = () => new Promise((resolve) => setTimeout(() => resolve({ ticker: 'AAPL', signal: 'neutral' }), 20));
+  const running = handleRealtimeMessage(
+    { type: 'analyze', request_id: 'metric-1', payload: { ticker: 'AAPL', horizon: 5 } },
+    { send: (message) => messages.push(message), predictFn: slowPredictor }
+  );
+
+  assert.equal(realtimeMetrics().active_requests >= 1, true);
+  await running;
+  assert.equal(realtimeMetrics().active_requests, 0);
 });

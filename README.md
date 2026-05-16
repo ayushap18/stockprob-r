@@ -98,6 +98,7 @@ Supported realtime messages are `analyze`, `rank`, `universe.search`, `cancel`, 
 The app is designed to fail closed and explain data gaps instead of silently inventing numbers.
 
 - Provider calls are isolated with retries, timeouts, and in-memory caching.
+- Identical concurrent provider requests are coalesced and the process cache is bounded to prevent unbounded growth.
 - If a paid data provider is unavailable, the response includes a provider warning and uses the next configured fallback where possible.
 - If core price history for the ticker or SPY is insufficient, the API returns a structured `503` rather than a misleading prediction.
 - The UI has an error boundary and a live API/provider health indicator.

@@ -30,12 +30,19 @@ const FALLBACK_UNIVERSE = [
 
 export async function fetchListedUniverse({ client, includeFallback = true } = {}) {
   if (client?.fetchUniverse) {
-    const symbols = normalizeUniverse(await client.fetchUniverse());
+    const result = await safeProviderCall({
+      name: 'Custom listed universe',
+      fallback: [],
+      retries: 0,
+      task: () => client.fetchUniverse(),
+    });
+    const symbols = normalizeUniverse(result.value);
+    const universe = symbols.length || !includeFallback ? symbols : FALLBACK_UNIVERSE;
     return {
-      symbols,
-      coverage: 'nasdaq-trader-listed-us-securities',
-      provider_status: { universe: 'ok' },
-      warnings: [],
+      symbols: universe,
+      coverage: symbols.length ? 'nasdaq-trader-listed-us-securities' : 'fallback-major-us-securities',
+      provider_status: { universe: result.status },
+      warnings: [result.warning, symbols.length ? null : 'Listed-symbol universe unavailable; using fallback seed universe'].filter(Boolean),
     };
   }
 
@@ -56,9 +63,10 @@ export async function fetchListedUniverse({ client, includeFallback = true } = {
 
   const parsed = dedupeUniverse([...parseNasdaqListed(nasdaqResult.value), ...parseOtherListed(otherResult.value)]);
   const universe = parsed.length || !includeFallback ? parsed : FALLBACK_UNIVERSE;
+  const partialCoverage = parsed.length && [nasdaqResult.status, otherResult.status].some((status) => status !== 'ok');
   return {
     symbols: universe,
-    coverage: parsed.length ? 'nasdaq-trader-listed-us-securities' : 'fallback-major-us-securities',
+    coverage: parsed.length ? (partialCoverage ? 'partial-nasdaq-trader-listed-us-securities' : 'nasdaq-trader-listed-us-securities') : 'fallback-major-us-securities',
     provider_status: {
       nasdaq_listed: nasdaqResult.status,
       other_listed: otherResult.status,

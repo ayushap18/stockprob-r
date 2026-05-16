@@ -186,6 +186,7 @@ h2 {
   color: white;
   padding: 12px 14px;
   white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 
 .metrics {
@@ -214,6 +215,7 @@ h2 {
   margin-top: 6px;
   color: #020617;
   font-size: 22px;
+  overflow-wrap: anywhere;
 }
 
 .score {
@@ -247,6 +249,7 @@ ol {
   color: #334155;
   font-weight: 700;
   line-height: 1.8;
+  overflow-wrap: anywhere;
 }
 
 .warning, .error {
@@ -255,6 +258,7 @@ ol {
   color: #78350f;
   padding: 10px 12px;
   font-weight: 800;
+  overflow-wrap: anywhere;
 }
 
 .health {
@@ -281,6 +285,7 @@ ol {
   background: rgba(59, 130, 246, 0.18);
   color: #bfdbfe;
   padding: 9px 12px;
+  overflow-wrap: anywhere;
 }
 
 .health-ok {

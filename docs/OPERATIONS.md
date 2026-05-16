@@ -33,7 +33,18 @@ Expected response:
 - Missing VIX/QQQ: return degraded provider status and continue where possible.
 - Missing ticker or SPY price history: return `503` with row counts and provider status.
 - Missing listed-symbol directory: return the fallback seed universe and report the universe provider warning.
+- Failed custom universe client: return the fallback seed universe and report the provider failure.
+- Empty provider response: mark the source degraded and include a warning.
 - Invalid ticker or horizon: return `400`.
+
+## Cache Policy
+
+Provider fetches use an in-memory bounded cache in the Node process.
+
+- Maximum default entries: `500`
+- Identical concurrent cache misses are coalesced into one provider request.
+- Expired entries are evicted on access.
+- Cache stats are available internally through `cacheStats()` for diagnostics and tests.
 
 ## Realtime Mode
 

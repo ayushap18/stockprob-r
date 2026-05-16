@@ -17,11 +17,12 @@ function App() {
   const [universe, setUniverse] = useState(null);
   const [progress, setProgress] = useState('');
   const comboboxRef = useRef(null);
+  const activeRequestRef = useRef(0);
   const transportLabel = useMemo(() => (realtimeUrl ? 'WebSocket realtime' : 'HTTP fallback'), []);
 
   useEffect(() => {
     fetch('/api/health')
-      .then((response) => response.json())
+      .then(readJson)
       .then(setHealth)
       .catch(() => setHealth({ ok: false, provider_summary: 'failed' }));
   }, []);
@@ -44,7 +45,7 @@ function App() {
     const controller = new AbortController();
     const timeout = setTimeout(() => {
       fetch(`/api/universe?q=${encodeURIComponent(query)}&limit=8`, { signal: controller.signal })
-        .then((response) => response.json())
+        .then(readJson)
         .then((payload) => {
           if (controller.signal.aborted) return;
           setUniverse(payload);
@@ -65,18 +66,24 @@ function App() {
   async function analyze(event) {
     event.preventDefault();
     setSuggestionsOpen(false);
+    const requestNumber = activeRequestRef.current + 1;
+    activeRequestRef.current = requestNumber;
     setLoading(true);
     setError('');
     setProgress(realtimeUrl ? 'Opening realtime stream...' : 'Fetching model output...');
     try {
-      const data = realtimeUrl ? await analyzeRealtime({ ticker, horizon, onProgress: setProgress }) : await analyzeHttp({ ticker, horizon });
+      const data = realtimeUrl
+        ? await analyzeRealtimeWithFallback({ ticker, horizon, onProgress: (message) => isActive(requestNumber) && setProgress(message) })
+        : await analyzeHttp({ ticker, horizon });
+      if (!isActive(requestNumber)) return;
       setResult(data);
       setProgress('');
     } catch (requestError) {
+      if (!isActive(requestNumber)) return;
       setError(requestError.message);
       setProgress('');
     } finally {
-      setLoading(false);
+      if (isActive(requestNumber)) setLoading(false);
     }
   }
 
@@ -151,47 +158,102 @@ function App() {
     setSuggestions([]);
     setSuggestionsOpen(false);
   }
+
+  function isActive(requestNumber) {
+    return activeRequestRef.current === requestNumber;
+  }
 }
 
 async function analyzeHttp({ ticker, horizon }) {
   const response = await fetch(`/api/outperform?ticker=${encodeURIComponent(ticker)}&horizon=${horizon}`);
-  const data = await response.json();
+  const data = await readJson(response);
   if (!response.ok) throw new Error(data.error || data.message || 'Analysis failed');
   return data;
+}
+
+async function analyzeRealtimeWithFallback({ ticker, horizon, onProgress }) {
+  try {
+    return await analyzeRealtime({ ticker, horizon, onProgress });
+  } catch (error) {
+    if (!error.fallbackEligible) throw error;
+    onProgress?.('Realtime unavailable; using HTTP fallback...');
+    return analyzeHttp({ ticker, horizon });
+  }
 }
 
 function analyzeRealtime({ ticker, horizon, onProgress }) {
   return new Promise((resolve, reject) => {
     const socket = new WebSocket(realtimeUrl);
     const requestId = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    let settled = false;
+    let intentionalClose = false;
     const timeout = setTimeout(() => {
+      settled = true;
+      intentionalClose = true;
       socket.close();
       reject(new Error('Realtime analysis timed out'));
     }, 60_000);
+    const finish = (callback) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      callback();
+    };
 
     socket.addEventListener('open', () => {
       socket.send(JSON.stringify({ type: 'analyze', request_id: requestId, payload: { ticker, horizon } }));
     });
     socket.addEventListener('message', (event) => {
-      const message = JSON.parse(event.data);
-      if (message.request_id && message.request_id !== requestId) return;
-      if (message.type === 'analysis.progress') onProgress?.(message.payload.step.replaceAll('_', ' '));
-      if (message.type === 'analysis.result') {
-        clearTimeout(timeout);
-        socket.close();
-        resolve(message.payload);
-      }
-      if (message.type === 'error') {
-        clearTimeout(timeout);
-        socket.close();
-        reject(new Error(message.payload.message || 'Realtime analysis failed'));
+      try {
+        const message = JSON.parse(event.data);
+        if (message.request_id && message.request_id !== requestId) return;
+        if (message.type === 'analysis.progress' && typeof message.payload?.step === 'string') onProgress?.(message.payload.step.replaceAll('_', ' '));
+        if (message.type === 'analysis.result') {
+          finish(() => {
+            intentionalClose = true;
+            socket.close();
+            resolve(message.payload);
+          });
+        }
+        if (message.type === 'error' || message.type === 'analysis.failed') {
+          finish(() => {
+            intentionalClose = true;
+            socket.close();
+            reject(new Error(message.payload?.message || 'Realtime analysis failed'));
+          });
+        }
+      } catch {
+        finish(() => {
+          intentionalClose = true;
+          socket.close();
+          reject(new Error('Invalid realtime message'));
+        });
       }
     });
     socket.addEventListener('error', () => {
-      clearTimeout(timeout);
-      reject(new Error('Realtime WebSocket unavailable. Use HTTP fallback or start npm run realtime.'));
+      finish(() => {
+        const error = new Error('Realtime WebSocket unavailable');
+        error.fallbackEligible = true;
+        reject(error);
+      });
+    });
+    socket.addEventListener('close', () => {
+      if (settled || intentionalClose) return;
+      finish(() => {
+        const error = new Error('Realtime WebSocket closed before analysis completed');
+        error.fallbackEligible = true;
+        reject(error);
+      });
     });
   });
+}
+
+async function readJson(response) {
+  try {
+    return await response.json();
+  } catch {
+    return { error: response.statusText || 'Request failed' };
+  }
 }
 
 function Result({ result }) {

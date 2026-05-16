@@ -1,23 +1,22 @@
 import { predictOutperformance } from '../server/models/predict.js';
+import { parseOutperformancePayload } from '../server/routes/stockprob.js';
 
 export default async function handler(request, response) {
   try {
     response.setHeader?.('Cache-Control', 's-maxage=300, stale-while-revalidate=900');
     const source = request.method === 'POST' ? request.body || {} : request.query || {};
-    const ticker = String(source.ticker || '').trim().toUpperCase();
-    const horizon = Number(source.horizon || 5);
-    const asOfDate = source.as_of_date || source.asOfDate || new Date().toISOString().slice(0, 10);
+    const parsed = parseOutperformancePayload({
+      ...source,
+      as_of_date: source.as_of_date || source.asOfDate,
+    });
 
-    if (!ticker) {
-      response.status(400).json({ error: 'ticker is required' });
-      return;
-    }
-    if (![5, 10, 20].includes(horizon)) {
-      response.status(400).json({ error: 'horizon must be 5, 10, or 20' });
-      return;
-    }
-
-    const result = await predictOutperformance({ ticker, horizon, asOfDate });
+    const result = await predictOutperformance({
+      ticker: parsed.ticker,
+      horizon: parsed.horizon,
+      asOfDate: parsed.as_of_date || new Date().toISOString().slice(0, 10),
+      riskTolerance: parsed.risk_tolerance,
+      dataClient: request.dataClient,
+    });
     response.status(200).json(result);
   } catch (error) {
     response.status(error.status || 500).json({
