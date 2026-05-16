@@ -11,7 +11,24 @@ const apiRoutes = new Map([
   ['/api/backtest', './api/backtest.js'],
   ['/api/model/report', './api/model/report.js'],
   ['/api/cron/nightly', './api/cron/nightly.js'],
+  ['/api/system/health', './api/system/health.js'],
+  ['/api/system/providers', './api/system/providers.js'],
+  ['/api/system/queues', './api/system/queues.js'],
+  ['/api/system/staleness', './api/system/staleness.js'],
+  ['/api/market/benchmarks', './api/market/benchmarks.js'],
+  ['/api/stream/quotes', './api/stream/quotes.js'],
+  ['/api/stream/probabilities', './api/stream/probabilities.js'],
+  ['/api/stream/system', './api/stream/system.js'],
+  ['/api/stream/provider-health', './api/stream/provider-health.js'],
 ]);
+
+const dynamicApiRoutes = [
+  [/^\/api\/market\/quote\/([^/]+)$/, './api/market/quote/[symbol].js'],
+  [/^\/api\/market\/ohlcv\/([^/]+)$/, './api/market/ohlcv/[symbol].js'],
+  [/^\/api\/market\/technicals\/([^/]+)$/, './api/market/technicals/[symbol].js'],
+  [/^\/api\/probabilities\/([^/]+)$/, './api/probabilities/[symbol].js'],
+  [/^\/api\/charts\/price\/([^/]+)$/, './api/charts/price/[symbol].js'],
+];
 
 const root = process.cwd();
 
@@ -26,8 +43,13 @@ function localApiPlugin() {
       server.middlewares.use(async (request, response, next) => {
         try {
           const url = new URL(request.url || '/', 'http://localhost');
-          const route = apiRoutes.get(url.pathname);
+          const matchedDynamic = dynamicApiRoutes.find(([pattern]) => pattern.test(url.pathname));
+          const route = apiRoutes.get(url.pathname) || matchedDynamic?.[1];
           if (!route) return next();
+          if (matchedDynamic) {
+            const [, symbol] = url.pathname.match(matchedDynamic[0]);
+            url.searchParams.set('symbol', decodeURIComponent(symbol));
+          }
 
           const handlerUrl = new URL(route, `${pathToFileURL(root).href}/`);
           handlerUrl.searchParams.set('t', String(Date.now()));
@@ -77,6 +99,15 @@ function createLocalResponse(response) {
     json(payload) {
       response.setHeader('Content-Type', 'application/json');
       response.end(JSON.stringify(payload));
+      return this;
+    },
+    write(payload) {
+      response.write(String(payload ?? ''));
+      return this;
+    },
+    end(payload) {
+      if (payload === undefined) response.end();
+      else response.end(String(payload ?? ''));
       return this;
     },
     send(payload) {

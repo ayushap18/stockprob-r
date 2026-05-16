@@ -215,6 +215,126 @@ Data policy:
 - Bloomberg webpages and broker dashboards are never scraped.
 - Production data should use official APIs, public datasets, or app-generated derived features only.
 
+## Live Data, yfinance Fallback, and Provider Architecture
+
+StockProb-R now has a cache-first live layer designed for Vercel serverless and Node/self-hosted deployments.
+
+REST endpoint groups:
+
+- Universe: `/api/universe?q=MSFT`, existing symbol coverage search.
+- Market: `/api/market/quote/MSFT`, `/api/market/ohlcv/MSFT?interval=1d`, `/api/market/benchmarks`, `/api/market/technicals/MSFT`.
+- Probabilities: `/api/probabilities/MSFT?horizonDays=5`.
+- Charts: `/api/charts/price/MSFT?benchmark=SPY`.
+- System: `/api/system/health`, `/api/system/providers`, `/api/system/queues`, `/api/system/staleness`.
+- Streaming fallback: `/api/stream/quotes?symbols=MSFT,AAPL`, `/api/stream/probabilities?symbols=MSFT,AAPL`, `/api/stream/system`, `/api/stream/provider-health`.
+
+New REST endpoints use a consistent envelope:
+
+```json
+{
+  "ok": true,
+  "data": {},
+  "meta": {
+    "source": "cache|provider|db|demo|yfinance|polygon|fmp|fred|sec",
+    "isDemo": false,
+    "asOf": "2026-05-16T10:30:00.000Z",
+    "stale": false,
+    "latencyMs": 123,
+    "warnings": []
+  }
+}
+```
+
+Realtime behavior:
+
+- Browser client first tries `VITE_REALTIME_URL` WebSocket endpoints for Node/self-hosted deployments.
+- If WebSocket is unavailable, it uses Vercel-safe Server-Sent Events.
+- If SSE fails, it falls back to intelligent polling.
+- Polling backs off when the tab is hidden and after errors.
+- Quote updates use 5-15 second cadence; probability/provider/system updates use slower refresh intervals.
+
+Provider priority:
+
+- Quotes/OHLCV/benchmarks: Polygon/Massive when `POLYGON_API_KEY` exists, then yfinance-compatible Yahoo chart endpoint, then cache/demo.
+- Fundamentals: Financial Modeling Prep when `FMP_API_KEY` exists, then cache/demo.
+- News: Alpha Vantage when `ALPHA_VANTAGE_API_KEY` exists, then cache/demo.
+- Macro: FRED when `FRED_API_KEY` exists, then cache/demo.
+- Filings/insiders: SEC EDGAR with `SEC_USER_AGENT`, then cache/demo.
+- Options: Polygon/Tradier when configured; Yahoo/yfinance options are treated as development-only and currently fail closed to cache/demo.
+
+yfinance/Yahoo disclaimer:
+
+- Yahoo/yfinance fallback is unofficial and intended for development/prototyping only.
+- It uses public chart/quote-style endpoints only.
+- It does not scrape Yahoo webpages and does not parse HTML.
+- It should not be treated as production-grade market data or final accuracy infrastructure.
+
+Environment variables:
+
+```bash
+POLYGON_API_KEY=
+FMP_API_KEY=
+ALPHA_VANTAGE_API_KEY=
+FRED_API_KEY=
+SEC_USER_AGENT=
+TRADIER_API_KEY=
+REDIS_URL=
+DATABASE_URL=
+CRON_SECRET=
+USE_YFINANCE=true
+ENABLE_DEMO_FALLBACK=true
+```
+
+Cache and jobs:
+
+- `src/lib/cache.js` provides TTL cache, stale-while-revalidate behavior, request coalescing, memory fallback, and Redis-ready status reporting.
+- `src/lib/jobs.js` records queue intent safely without crashing when Redis is missing.
+- `db/schema.sql` documents the production Postgres/Neon tables for universe, price bars, fundamentals, earnings, news, filings, insiders, options, macro snapshots, derived features, predictions, backtests, provider health, and jobs.
+
+Suggested TTLs:
+
+- Quotes: 5-15 seconds during market hours, 60 seconds after hours.
+- Daily OHLCV: 1-6 hours.
+- Intraday OHLCV: 30-120 seconds.
+- Fundamentals and earnings: 6-24 hours.
+- News: 15-60 minutes.
+- FRED macro: 12-24 hours.
+- SEC filings: 1-6 hours.
+- Probabilities: 30-120 seconds.
+- Provider health: 30-120 seconds.
+
+Demo fallback:
+
+- Missing provider keys do not crash local development or production.
+- Demo data is deterministic and visibly labeled in live UI components.
+- Demo fallback is a reliability feature, not an accuracy claim.
+
+No hidden/private scraping policy:
+
+- Do not scrape Bloomberg webpages, broker dashboards, TradingView pages, paywalled data, or protected UIs.
+- Use official APIs, licensed providers, public datasets, SEC EDGAR, FRED, FMP, Alpha Vantage, Polygon/Massive, and app-generated derived features only.
+
+Local run:
+
+```bash
+cd js
+npm install
+npm run dev
+```
+
+Vercel deployment:
+
+```bash
+cd js
+vercel --prod
+```
+
+Known limitations:
+
+- Vercel serverless does not provide long-lived WebSocket hosting; SSE/polling is the production fallback.
+- Redis and Postgres adapters are readiness/stubbed unless `REDIS_URL` and `DATABASE_URL` are configured.
+- Polygon/Tradier options integration is not enabled unless corresponding credentials and provider work are added.
+
 ## Backtesting
 
 The JavaScript engine includes a walk-forward backtest module that:

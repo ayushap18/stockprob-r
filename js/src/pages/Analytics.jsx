@@ -23,6 +23,11 @@ import {
   SpyComparisonChart,
   TechnicalBreakdownChart,
 } from '../components/charts/index.js';
+import LiveProviderHealthPanel from '../components/live/LiveProviderHealthPanel.jsx';
+import LiveQuoteTicker from '../components/live/LiveQuoteTicker.jsx';
+import LiveStatusBadge from '../components/live/LiveStatusBadge.jsx';
+import LiveSystemPanel from '../components/live/LiveSystemPanel.jsx';
+import { useLiveProbabilities } from '../hooks/useLiveProbabilities.js';
 
 export default function Analytics() {
   const initialTicker = new URLSearchParams(window.location.search).get('ticker') || 'MSFT';
@@ -52,6 +57,8 @@ export default function Analytics() {
   }, [ticker]);
 
   const prediction = bundle?.prediction?.data;
+  const liveProbabilities = useLiveProbabilities([ticker], 5);
+  const liveProbability = liveProbabilities.data?.[ticker]?.probabilityOutperformSpy ?? prediction?.probability;
   const trend = useMemo(() => generateDemoProbabilityTrend(ticker), [ticker]);
   const demoSources = bundle ? Object.values(bundle).filter((section) => section?.isDemo).map((section) => section.source) : [];
 
@@ -87,12 +94,17 @@ export default function Analytics() {
         {!!demoSources.length && <section className="analytics-demo-banner">Some sections are using deterministic demo/fallback data: {demoSources.join(', ')}. The UI remains stable when providers fail.</section>}
 
         <section className="analytics-kpis">
-          <Kpi label="P(outperform SPY)" value={pct(prediction?.probability)} />
+          <Kpi label="P(outperform SPY)" value={pct(liveProbability)} detail={<LiveStatusBadge status={liveProbabilities.status} source={liveProbabilities.source} isDemo={liveProbabilities.isDemo} lastUpdated={liveProbabilities.lastUpdated} />} />
           <Kpi label="Expected Return" value={signedPct(prediction?.expectedReturn)} />
           <Kpi label="Excess vs SPY" value={signedPct(prediction?.expectedExcessReturn)} />
           <Kpi label="Confidence" value={pct(prediction?.confidence)} />
           <Kpi label="Risk" value={`${pct(prediction?.riskScore)} · ${prediction?.riskLabel || 'n/a'}`} />
           <Kpi label="Signal" value={prediction?.signal || 'neutral'} />
+        </section>
+        <section className="analytics-grid thirds">
+          <LiveQuoteTicker symbols={[ticker, 'SPY', 'QQQ']} />
+          <LiveSystemPanel />
+          <LiveProviderHealthPanel />
         </section>
 
         {bundle && (
@@ -183,8 +195,8 @@ function AnalyticsSection({ title, children }) {
   return <section className="analytics-section"><h2>{title}</h2>{children}</section>;
 }
 
-function Kpi({ label, value }) {
-  return <article><span>{label}</span><strong>{value}</strong></article>;
+function Kpi({ label, value, detail = null }) {
+  return <article><span>{label}</span><strong>{value}</strong>{detail}</article>;
 }
 
 function pct(value) {

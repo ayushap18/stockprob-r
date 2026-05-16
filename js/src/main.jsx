@@ -1,6 +1,11 @@
 import React, { Component, Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import './styles.css';
+import LiveProviderHealthPanel from './components/live/LiveProviderHealthPanel.jsx';
+import LiveQuoteTicker from './components/live/LiveQuoteTicker.jsx';
+import LiveStatusBadge from './components/live/LiveStatusBadge.jsx';
+import LiveSystemPanel from './components/live/LiveSystemPanel.jsx';
+import { useLiveProbabilities } from './hooks/useLiveProbabilities.js';
 
 const quickTickers = ['AAPL', 'MSFT', 'NVDA', 'TSLA', 'AMZN', 'GOOGL', 'META', 'JPM'];
 const TICKER_SEARCH_LIMIT = 75;
@@ -519,11 +524,18 @@ function TerminalRibbon({ analysis, health, transportLabel }) {
 
 function Dashboard({ analysis, isSample, backtestData, backtestLoading, modelReport, modelReportLoading, modelReportError }) {
   const monteCarlo = useMemo(() => buildMonteCarlo(analysis), [analysis]);
+  const liveProbabilities = useLiveProbabilities([analysis.ticker || 'MSFT'], Number.parseInt(analysis.horizon, 10) || 5);
+  const liveProbability = liveProbabilities.data?.[analysis.ticker]?.probabilityOutperformSpy ?? analysis.probability_outperform_spy;
   return (
     <section className="dashboard-grid">
+      <div className="span-12 live-dashboard-row">
+        <LiveQuoteTicker symbols={[analysis.ticker || 'MSFT', 'SPY', 'QQQ']} />
+        <LiveSystemPanel />
+        <LiveProviderHealthPanel />
+      </div>
       <TickerHeader analysis={analysis} isSample={isSample} />
       <section className="kpi-grid">
-        <MetricCard label="Probability outperforming SPY" value={pct(analysis.probability_outperform_spy)} tone="primary" detail="Counted against benchmark distribution" />
+        <MetricCard label="Probability outperforming SPY" value={pct(liveProbability)} tone="primary" detail={<><LiveStatusBadge status={liveProbabilities.status} source={liveProbabilities.source} isDemo={liveProbabilities.isDemo} lastUpdated={liveProbabilities.lastUpdated} /></>} />
         <MetricCard label="Expected return" value={signedPct(analysis.expected_return)} detail="Forward horizon expectation" />
         <MetricCard label="Excess vs SPY" value={signedPct(analysis.expected_excess_return)} tone={analysis.expected_excess_return >= 0 ? 'positive' : 'negative'} detail="Primary target differential" />
         <MetricCard label="Signal" value={title(analysis.signal)} tone={signalTone(analysis.signal)} detail="No buy/sell instruction" />

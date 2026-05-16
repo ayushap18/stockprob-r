@@ -1,10 +1,10 @@
 import React, { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import ReactECharts from 'echarts-for-react';
-import createPlotlyComponentModule from 'react-plotly.js/factory';
+import createPlotlyComponentModule from 'react-plotly.js/factory.js';
 import Plotly from 'plotly.js-dist-min';
 import { ResponsiveContainer } from 'recharts';
 
-const createPlotlyComponent = createPlotlyComponentModule.default || createPlotlyComponentModule;
+const createPlotlyComponent = createPlotlyComponentModule.default?.default || createPlotlyComponentModule.default || createPlotlyComponentModule;
 const Plot = createPlotlyComponent(Plotly);
 
 export function ChartShell({ title, subtitle, isDemo, warnings = [], children, className = '' }) {
