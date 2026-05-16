@@ -114,8 +114,27 @@ test('realtime handler supports ping and structured errors without throwing', as
   await handleRealtimeMessage({ type: 'ping', request_id: 'ping-1' }, { send: (message) => messages.push(message) });
 
   assert.equal(messages[0].type, 'error');
+  assert.equal(messages[0].payload.code, 'INVALID_MESSAGE');
   assert.equal(messages[1].type, 'pong');
+  assert.equal(messages[2].type, 'heartbeat.pong');
   assert.equal(messages[1].request_id, 'ping-1');
+});
+
+test('analysis emits production progress steps and provider status', async () => {
+  const messages = [];
+  await handleRealtimeMessage(
+    { type: 'analyze', request_id: 'analysis-1', payload: { ticker: 'MSFT', horizon: 5 } },
+    {
+      send: (message) => messages.push(message),
+      predictFn: async () => ({ ticker: 'MSFT', signal: 'neutral', probability_outperform_spy: 0.51 }),
+    }
+  );
+
+  const steps = messages.filter((message) => message.type === 'analysis.progress').map((message) => message.payload.step);
+  assert.deepEqual(steps, ['fetching_prices', 'fetching_spy', 'fetching_news', 'fetching_fundamentals', 'calculating_features', 'running_model', 'complete']);
+  assert(messages.some((message) => message.type === 'analysis.start'));
+  assert(messages.some((message) => message.type === 'provider.status'));
+  assert(messages.some((message) => message.type === 'analysis.result'));
 });
 
 test('realtime handler can cancel an in-flight analysis request', async () => {
@@ -148,6 +167,23 @@ test('mapWithConcurrency caps active realtime ranking work', async () => {
   assert.equal(maxActive, 2);
 });
 
+test('rank streams each ticker and live leaderboard updates', async () => {
+  const messages = [];
+  await handleRealtimeMessage(
+    { type: 'rank', request_id: 'rank-1', payload: { tickers: ['AAA', 'BBB', 'CCC'], horizon: 5, limit: 2 } },
+    {
+      send: (message) => messages.push(message),
+      rankConcurrency: 2,
+      predictFn: async ({ ticker }) => ({ ticker, alpha_score: ticker === 'BBB' ? 0.9 : ticker === 'CCC' ? 0.7 : 0.4, signal: 'neutral' }),
+    }
+  );
+
+  assert(messages.some((message) => message.type === 'rank.start'));
+  assert.equal(messages.filter((message) => message.type === 'rank.item').length >= 3, true);
+  assert.equal(messages.filter((message) => message.type === 'rank.leaderboard').length >= 3, true);
+  assert.equal(messages.find((message) => message.type === 'rank.complete').payload.rankings[0].ticker, 'BBB');
+});
+
 test('rate limiter rejects bursts past configured realtime budget', () => {
   const limiter = createRateLimiter({ maxEvents: 2, windowMs: 1_000 });
   assert.equal(limiter.allow('client-a'), true);
@@ -167,4 +203,55 @@ test('realtime metrics reports active work and clears after completion', async (
   assert.equal(realtimeMetrics().active_requests >= 1, true);
   await running;
   assert.equal(realtimeMetrics().active_requests, 0);
+});
+
+test('watchlist emits snapshot, changed updates, and unsubscribe', async () => {
+  const messages = [];
+  let run = 0;
+  await handleRealtimeMessage(
+    { type: 'watchlist.subscribe', request_id: 'watch-1', payload: { tickers: ['MSFT'], horizon: 5, interval_ms: 5 } },
+    {
+      send: (message) => messages.push(message),
+      predictFn: async () => ({ ticker: 'MSFT', signal: run++ === 0 ? 'neutral' : 'bullish', probability_outperform_spy: run === 1 ? 0.51 : 0.7 }),
+    }
+  );
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  await handleRealtimeMessage({ type: 'watchlist.unsubscribe', request_id: 'watch-stop', payload: { subscription_id: 'watch-1' } }, { send: (message) => messages.push(message) });
+
+  assert(messages.some((message) => message.type === 'watchlist.snapshot'));
+  assert(messages.some((message) => message.type === 'watchlist.update'));
+  assert(messages.some((message) => message.type === 'watchlist.unsubscribe'));
+});
+
+test('backtest streaming emits progress, trade, metrics, and complete', async () => {
+  const messages = [];
+  await handleRealtimeMessage(
+    { type: 'backtest', request_id: 'bt-1', payload: { universe: ['AAA'], horizon: 5 } },
+    {
+      send: (message) => messages.push(message),
+      backtestFn: async () => ({
+        trades: [{ ticker: 'AAA', entry_date: '2026-01-01', exit_date: '2026-01-08', net_return: 0.02 }],
+        metrics: { sharpe_ratio: 1.1 },
+        equity_curve: [{ date: '2026-01-08', equity: 1.02 }],
+      }),
+    }
+  );
+
+  assert(messages.some((message) => message.type === 'backtest.start'));
+  assert(messages.some((message) => message.type === 'backtest.progress'));
+  assert(messages.some((message) => message.type === 'backtest.trade'));
+  assert(messages.some((message) => message.type === 'backtest.metrics'));
+  assert(messages.some((message) => message.type === 'backtest.complete'));
+});
+
+test('blank agent accepts a user message without trading advice', async () => {
+  const messages = [];
+  await handleRealtimeMessage(
+    { type: 'agent.blank', request_id: 'agent-1', payload: { message: 'hello' } },
+    { send: (message) => messages.push(message) }
+  );
+
+  const response = messages.find((message) => message.type === 'agent.blank.message');
+  assert.equal(response.payload.role, 'agent');
+  assert.match(response.payload.content, /blank realtime agent/i);
 });

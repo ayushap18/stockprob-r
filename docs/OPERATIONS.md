@@ -63,14 +63,38 @@ VITE_REALTIME_URL=ws://localhost:8091 npm run dev
 
 Protocol:
 
-- `analyze`: streams `analysis.started`, `analysis.progress`, and `analysis.result`.
-- `rank`: ranks up to 100 submitted tickers and streams `rank.item` events.
+- `analyze`: streams `analysis.start`, ordered `analysis.progress`, `provider.status`, and `analysis.result`.
+- `rank`: ranks up to 100 submitted tickers and streams `rank.item`, `rank.leaderboard`, and `rank.complete`.
 - `universe.search`: searches the listed US symbol universe and returns `universe.results`.
+- `watchlist.subscribe`: emits `watchlist.snapshot` and later `watchlist.update` events when signal/probability changes.
+- `watchlist.unsubscribe`: stops a watchlist subscription.
+- `backtest`: emits `backtest.start`, `backtest.progress`, `backtest.trade`, `backtest.metrics`, and `backtest.complete`.
+- `agent.blank`: opens a neutral blank realtime agent channel for operational conversation, not trading advice.
 - `cancel`: marks an active `request_id` as cancelled and suppresses late results.
-- `ping`: returns `pong` for client keepalive checks.
+- `ping`: returns `pong` and `heartbeat.pong` for client keepalive checks.
 - `metrics`: returns active realtime request counts and ages.
 
 The realtime server sends heartbeat pings and terminates dead sockets to avoid stale client buildup. It also enforces a 64 KB message limit, per-client rate limiting, and bounded-concurrent ranking work.
+
+Analysis progress steps:
+
+- `fetching_prices`
+- `fetching_spy`
+- `fetching_news`
+- `fetching_fundamentals`
+- `calculating_features`
+- `running_model`
+- `complete`
+
+Structured realtime error codes:
+
+- `INVALID_TICKER`
+- `RATE_LIMITED`
+- `PROVIDER_FAILED`
+- `INSUFFICIENT_HISTORY`
+- `JOB_CANCELLED`
+- `TIMEOUT`
+- `INVALID_MESSAGE`
 
 ## Accuracy Policy
 
