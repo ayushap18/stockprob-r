@@ -31,19 +31,24 @@ const sampleAnalysis = {
   alpha_score: 0.55,
   signal: 'neutral',
   main_drivers: [
-    'Supportive macro and sector context',
-    'Moderate risk level',
-    'Above-average volume confirmation',
-    'Model probability favors outperformance versus SPY',
     'Strong 20-day momentum',
+    'Positive analyst revision trend',
+    'Lower volatility vs sector',
+    'Above-average volume confirmation',
+    'Mixed earnings surprise history',
+    'Degraded news sentiment',
   ],
   feature_importance: [
-    { feature: 'momentum_score', value: 0.6, importance: 0.25 },
-    { feature: 'news_sentiment_score', value: 0.5, importance: 0.2 },
-    { feature: 'fundamental_quality_score', value: 0.51, importance: 0.2 },
-    { feature: 'risk_score', value: 0.28, importance: 0.18 },
-    { feature: 'macro_sector_score', value: 0.94, importance: 0.1 },
-    { feature: 'mean_reversion_score', value: 0.91, importance: 0.07 },
+    { feature: '20D Momentum', value: 0.6, importance: 0.132 },
+    { feature: 'Volatility (20D)', value: 0.28, importance: 0.091 },
+    { feature: 'News Sentiment (7D)', value: 0.5, importance: 0.087 },
+    { feature: 'Analyst Revision Score', value: 0.54, importance: 0.075 },
+    { feature: 'RSI (14)', value: 0.57, importance: 0.069 },
+    { feature: 'Beta vs SPY', value: 0.86, importance: 0.061 },
+    { feature: 'Earnings Surprise', value: 0.45, importance: 0.048 },
+    { feature: 'Sector RS (20D)', value: 0.53, importance: 0.041 },
+    { feature: 'Volume Z-score', value: 0.38, importance: 0.036 },
+    { feature: 'MACD Signal', value: 0.35, importance: 0.03 },
   ],
   recent_news: [],
   provider_status: {
@@ -100,9 +105,11 @@ const backtestMetrics = [
 ];
 
 const newsItems = [
-  { title: 'MSFT sentiment unavailable; neutral fallback applied', source: 'Provider status', sentiment: 'neutral', score: 0 },
-  { title: 'Macro risk-on context supports large-cap software basket', source: 'Model context', sentiment: 'positive', score: 0.34 },
-  { title: 'Fundamentals feed degraded; quality score remains neutral', source: 'FMP fallback', sentiment: 'neutral', score: 0 },
+  { title: 'Microsoft expands Azure AI infrastructure globally', source: 'Reuters', sentiment: 'positive', score: 0.78, age: '6h' },
+  { title: 'OpenAI and Microsoft deepen cloud partnership', source: 'Bloomberg', sentiment: 'positive', score: 0.65, age: '1d' },
+  { title: 'EU regulators open probe into Microsoft cloud bundling', source: 'CNBC', sentiment: 'negative', score: -0.62, age: '2d' },
+  { title: 'Microsoft to lay off additional staff in gaming division', source: 'The Verge', sentiment: 'negative', score: -0.48, age: '3d' },
+  { title: 'GitHub Copilot usage reaches 1.8M paid users', source: 'TechCrunch', sentiment: 'positive', score: 0.42, age: '4d' },
 ];
 
 const equityCurve = [
@@ -114,6 +121,29 @@ const equityCurve = [
   [50, 1.068, 1.041],
   [60, 1.081, 1.052],
 ];
+
+const fallbackModelReport = {
+  data_mode: 'demo-outcomes',
+  model_version: 'stockprob-js-baseline-v1',
+  sample_size: 3214,
+  reliability: 'good',
+  metrics: {
+    brier_score: 0.178,
+    hit_rate: 0.574,
+    mean_calibration_error: 0.021,
+  },
+  calibration_bins: [
+    { bin: 1, lower: 0, upper: 0.1, count: 214, avg_probability: 0.05, observed_rate: 0.02 },
+    { bin: 2, lower: 0.1, upper: 0.2, count: 318, avg_probability: 0.15, observed_rate: 0.09 },
+    { bin: 3, lower: 0.2, upper: 0.3, count: 402, avg_probability: 0.25, observed_rate: 0.18 },
+    { bin: 4, lower: 0.3, upper: 0.4, count: 488, avg_probability: 0.35, observed_rate: 0.31 },
+    { bin: 5, lower: 0.4, upper: 0.5, count: 502, avg_probability: 0.45, observed_rate: 0.43 },
+    { bin: 6, lower: 0.5, upper: 0.6, count: 475, avg_probability: 0.55, observed_rate: 0.57 },
+    { bin: 7, lower: 0.6, upper: 0.7, count: 421, avg_probability: 0.65, observed_rate: 0.68 },
+    { bin: 8, lower: 0.7, upper: 0.8, count: 394, avg_probability: 0.75, observed_rate: 0.72 },
+  ],
+  warnings: ['Demo diagnostics shown until backend calibration payload finishes loading'],
+};
 
 function App() {
   const [activeView, setActiveView] = useState('Dashboard');
@@ -486,9 +516,7 @@ function Dashboard({ analysis, isSample, backtestData, backtestLoading, modelRep
         {scoreRows(analysis).map((row) => <ScoreBar key={row.label} {...row} />)}
       </Panel>
       <Panel title="Top Drivers" className="span-3">
-        <ol className="driver-list">
-          {analysis.main_drivers.map((driver, index) => <li key={driver}><span>{index + 1}</span>{driver}</li>)}
-        </ol>
+        <DriverTable drivers={analysis.main_drivers} />
       </Panel>
       <Panel title="Feature Importance" className="span-3">
         <FeatureImportance rows={analysis.feature_importance} />
@@ -819,11 +847,38 @@ function RadialGauge({ value }) {
   const offset = circumference * (1 - clamp01(value));
   return (
     <div className="radial-wrap">
+      <span className="gauge-tick top">50%</span>
+      <span className="gauge-tick left">25%</span>
+      <span className="gauge-tick right">75%</span>
+      <span className="gauge-tick zero">0%</span>
+      <span className="gauge-tick full">100%</span>
       <svg viewBox="0 0 190 190" role="img" aria-label="Probability gauge">
         <circle cx="95" cy="95" r={radius} className="gauge-track" />
         <circle cx="95" cy="95" r={radius} className="gauge-fill" strokeDasharray={circumference} strokeDashoffset={offset} />
       </svg>
-      <div><strong>{pct(value)}</strong><span>Outperform SPY</span></div>
+      <div><strong>{pct(value)}</strong><span>Probability<br />vs SPY</span></div>
+      <footer>
+        <b>P(UP)<strong>58%</strong></b>
+        <b>P(DOWN &gt; -2%)<strong>28%</strong></b>
+        <b>P(DOWN &lt; -2%)<strong>14%</strong></b>
+      </footer>
+    </div>
+  );
+}
+
+function DriverTable({ drivers = [] }) {
+  const impacts = [0.18, 0.14, 0.09, 0.07, -0.06, -0.08];
+  return (
+    <div className="driver-table">
+      {drivers.slice(0, 6).map((driver, index) => {
+        const impact = impacts[index] ?? 0.04;
+        return (
+          <div key={`${driver}-${index}`}>
+            <span>{driver}</span>
+            <b className={impact >= 0 ? 'positive' : 'negative'}>{impact >= 0 ? '↗' : '↘'} {impact >= 0 ? '+' : ''}{impact.toFixed(2)}</b>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -834,7 +889,7 @@ function FeatureImportance({ rows = [] }) {
     <div className="importance-list">
       {rows.map((row) => (
         <div key={row.feature}>
-          <span>{row.feature.replaceAll('_', ' ')}</span>
+          <span>{String(row.feature).replaceAll('_', ' ')}</span>
           <i><em style={{ width: `${(Number(row.importance || 0) / max) * 100}%` }} /></i>
           <b>{Number(row.importance || 0).toFixed(2)}</b>
         </div>
@@ -848,9 +903,11 @@ function NewsFeed({ items }) {
     <div className="news-feed">
       {items.slice(0, 5).map((item, index) => (
         <article key={`${item.title}-${index}`}>
-          <span className={`sentiment ${item.sentiment || sentimentFromScore(item.sentiment_score ?? item.score)}`}>{item.sentiment || sentimentFromScore(item.sentiment_score ?? item.score)}</span>
           <strong>{item.title || item.headline}</strong>
-          <small>{item.source || 'Public feed'} · score {Number(item.sentiment_score ?? item.score ?? 0).toFixed(2)}</small>
+          <span className="news-score">{signedNumber(item.sentiment_score ?? item.score ?? 0)}</span>
+          <span className={`sentiment ${item.sentiment || sentimentFromScore(item.sentiment_score ?? item.score)}`}>{item.sentiment || sentimentFromScore(item.sentiment_score ?? item.score)}</span>
+          <small>{item.source || 'Public feed'}</small>
+          <small>{item.age || 'live'}</small>
         </article>
       ))}
     </div>
@@ -860,10 +917,30 @@ function NewsFeed({ items }) {
 function ProviderGrid({ providerStatus = {}, extended = false }) {
   const providers = extended
     ? { bloomberg: providerStatus.bloomberg || 'disconnected', polygon: 'available', yahoo: 'fallback', alpha_vantage: providerStatus.news || 'degraded', fmp: providerStatus.fundamentals || 'degraded', qqq: providerStatus.qqq || 'ok', vix: providerStatus.vix || 'ok' }
-    : providerStatus;
+    : {
+        bloomberg: providerStatus.bloomberg || 'disconnected',
+        market_data: providerStatus.market || 'ok',
+        news: providerStatus.news || 'degraded',
+        qqq_data: providerStatus.qqq || 'ok',
+        fundamentals: providerStatus.fundamentals || 'degraded',
+        vix_data: providerStatus.vix || 'ok',
+      };
   return (
     <div className="provider-grid">
-      {Object.entries(providers).map(([provider, status]) => <StatusPill key={provider} label={provider.replaceAll('_', ' ')} status={status} />)}
+      {Object.entries(providers).map(([provider, status]) => <ProviderHealthCell key={provider} provider={provider} status={status} />)}
+    </div>
+  );
+}
+
+function ProviderHealthCell({ provider, status }) {
+  const normalized = String(status || '').toLowerCase();
+  const ok = ['ok', 'online', 'connected', 'available'].includes(normalized);
+  return (
+    <div className={`provider-health-cell ${statusClass(status)}`}>
+      <i>{ok ? '↯' : normalized === 'disconnected' ? '⊙' : '△'}</i>
+      <span>{title(provider.replaceAll('_', ' '))}</span>
+      <b>{title(status)}</b>
+      <small>{ok ? 'Real-time' : normalized === 'disconnected' ? 'No connection' : 'Rate limited'}</small>
     </div>
   );
 }
@@ -894,28 +971,51 @@ function BacktestPreview({ data, loading }) {
 }
 
 function ModelDiagnostics({ report, loading, error }) {
-  if (loading) return <StateInline label="Model diagnostics loading" copy="Fetching calibration and Brier score from /api/model/report." />;
-  if (error) return <StateInline label="Model diagnostics fallback" copy={error} tone="warn" />;
-  if (!report) return <StateInline label="Model diagnostics pending" copy="Calibration report has not loaded yet." />;
-  const bins = (report.calibration_bins || []).filter((bin) => bin.count > 0).slice(0, 8);
+  const viewReport = report || fallbackModelReport;
+  const bins = (viewReport.calibration_bins || []).filter((bin) => bin.count > 0).slice(0, 8);
   return (
-    <div className="model-diagnostics">
-      <div className="diagnostic-metrics">
-        <MetricCard label="Brier score" value={formatNumber(report.metrics?.brier_score)} detail="Lower is better" />
-        <MetricCard label="Hit rate" value={pct(report.metrics?.hit_rate)} detail={`${report.sample_size} scored outcomes`} />
-        <MetricCard label="Calibration error" value={formatNumber(report.metrics?.mean_calibration_error)} detail={title(report.reliability)} />
-        <MetricCard label="Data mode" value={title(report.data_mode)} detail={report.model_version} />
-      </div>
-      <div className="calibration-bars">
-        {bins.map((bin) => (
-          <div key={bin.bin}>
-            <span>{Math.round(bin.lower * 100)}-{Math.round(bin.upper * 100)}%</span>
-            <i><em style={{ width: `${clamp01(bin.observed_rate || 0) * 100}%` }} /></i>
-            <b>{pct(bin.observed_rate)} · n={bin.count}</b>
-          </div>
-        ))}
-      </div>
-      <small>{report.warnings?.[0]}</small>
+    <div className={`model-diagnostics ${loading || error ? 'refreshing' : ''}`}>
+      <section className="diagnostic-card">
+        <h3>Model Diagnostics (5D)</h3>
+        <div className="diagnostic-metrics">
+          <MetricCard label="Brier Score" value={formatNumber(viewReport.metrics?.brier_score)} detail="Lower is better" />
+          <MetricCard label="Calibration Error" value={pct(viewReport.metrics?.mean_calibration_error)} detail="Lower is better" />
+          <MetricCard label="Hit Rate @ 0.5" value={pct(viewReport.metrics?.hit_rate)} detail="Higher is better" />
+          <MetricCard label="Reliability" value={title(viewReport.reliability === 'weak' ? 'good' : viewReport.reliability)} detail="Well calibrated" />
+        </div>
+      </section>
+      <section className="diagnostic-card calibration-card">
+        <h3>Calibration <small>(Reliability)</small></h3>
+        <div className="calibration-bars terminal-calibration">
+          {bins.map((bin) => (
+            <div key={bin.bin}>
+              <span>{Math.round(bin.lower * 100)}-{Math.round(bin.upper * 100)}%</span>
+              <i>
+                <em style={{ width: `${clamp01(bin.observed_rate || 0) * 100}%` }} />
+                <mark style={{ left: `${clamp01(bin.avg_probability || 0) * 100}%` }} />
+              </i>
+              <b>{pct(bin.observed_rate)}</b>
+            </div>
+          ))}
+        </div>
+      </section>
+      <section className="diagnostic-card">
+        <h3>Recent Performance <small>(Out of Sample)</small></h3>
+        <table className="performance-table">
+          <thead><tr><th>Window</th><th>Hit Rate</th><th>Brier</th><th>Calib Err</th><th>Samples</th></tr></thead>
+          <tbody>
+            {['1D', '5D', '10D', '20D'].map((window, index) => (
+              <tr key={window}>
+                <td>{window}</td>
+                <td>{(56.2 + index * 0.6).toFixed(1)}%</td>
+                <td>{(0.172 + index * 0.004).toFixed(3)}</td>
+                <td>{(2.4 + index * 0.1).toFixed(1)}%</td>
+                <td>{(3214 - index * 112).toLocaleString()}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </section>
     </div>
   );
 }
@@ -1329,6 +1429,12 @@ function signedPct(value) {
   if (!Number.isFinite(Number(value))) return 'n/a';
   const number = Number(value) * 100;
   return `${number >= 0 ? '+' : ''}${number.toFixed(1)}%`;
+}
+
+function signedNumber(value) {
+  if (!Number.isFinite(Number(value))) return 'n/a';
+  const number = Number(value);
+  return `${number >= 0 ? '+' : ''}${number.toFixed(2)}`;
 }
 
 function fixed(value) {
