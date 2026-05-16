@@ -756,12 +756,12 @@ td strong { color: #f8fafc; }
   line-height: 1.6;
 }
 
-.readiness-list, .capability-grid, .storage-health {
+.readiness-list, .capability-grid, .storage-health, .queue-health {
   display: grid;
   gap: 10px;
 }
 
-.readiness-list div, .capability-grid div, .storage-health div {
+.readiness-list div, .capability-grid div, .storage-health div, .queue-health div {
   display: grid;
   grid-template-columns: minmax(180px, 1.2fr) minmax(100px, 0.5fr) minmax(0, 1fr);
   gap: 10px;
@@ -774,11 +774,11 @@ td strong { color: #f8fafc; }
   grid-template-columns: minmax(0, 1fr) auto;
 }
 
-.storage-health div {
+.storage-health div, .queue-health div {
   grid-template-columns: minmax(0, 1fr) auto;
 }
 
-.readiness-list span, .readiness-list small, .capability-grid span, .storage-health span, .storage-health small {
+.readiness-list span, .readiness-list small, .capability-grid span, .storage-health span, .storage-health small, .queue-health span, .queue-health small {
   min-width: 0;
   color: #94a3b8;
   font-size: 12px;
@@ -787,9 +787,26 @@ td strong { color: #f8fafc; }
   text-transform: capitalize;
 }
 
-.capability-grid strong, .storage-health strong {
+.capability-grid strong, .storage-health strong, .queue-health strong {
   color: #e0f2fe;
   font-size: 12px;
+}
+
+.queue-plan {
+  display: flex !important;
+  grid-template-columns: none !important;
+  flex-wrap: wrap;
+  gap: 8px !important;
+  border-bottom: 0 !important;
+  padding-bottom: 0 !important;
+}
+
+.queue-plan span {
+  border: 1px solid rgba(34, 211, 238, 0.22);
+  border-radius: 999px;
+  color: #67e8f9;
+  padding: 5px 8px;
+  text-transform: none;
 }
 
 .incident-log {

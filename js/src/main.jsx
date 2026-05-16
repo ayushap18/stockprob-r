@@ -504,6 +504,7 @@ function DataHealth({ health, providerStatus }) {
         <Panel title="Configured APIs" className="span-7"><ProviderReadiness health={health} /></Panel>
         <Panel title="System Capabilities" className="span-5"><CapabilityGrid health={health} /></Panel>
         <Panel title="Storage Layer" className="span-6"><StorageHealth health={health} /></Panel>
+        <Panel title="Queue Layer" className="span-6"><QueueHealth health={health} /></Panel>
         <Panel title="Fallback Behavior" className="span-6">
           <ul className="plain-list">
             <li>Bloomberg uses official BLPAPI only; webpages are not scraped.</li>
@@ -540,6 +541,39 @@ function StorageHealth({ health }) {
         </div>
       ))}
       <small>{storage.message}</small>
+    </div>
+  );
+}
+
+function QueueHealth({ health }) {
+  const queue = health?.queue;
+  if (!queue) return <StateInline label="Queue pending" copy="Health endpoint has not returned queue metadata yet." />;
+  const counts = queue.counts || {};
+  const workerQueues = queue.worker_plan?.queues || [];
+  return (
+    <div className="queue-health">
+      <div>
+        <span>mode</span>
+        <StatusPill label={queue.kind} status={queue.distributed ? 'ok' : 'fallback'} />
+      </div>
+      <div>
+        <span>execution</span>
+        <strong>{queue.distributed ? 'distributed workers' : 'memory fallback'}</strong>
+      </div>
+      {['queued', 'running', 'completed', 'failed'].map((label) => (
+        <div key={label}>
+          <span>{label}</span>
+          <strong>{counts[label] ?? 0}</strong>
+        </div>
+      ))}
+      <small>{queue.message}</small>
+      {!!workerQueues.length && (
+        <div className="queue-plan">
+          {workerQueues.slice(0, 5).map((workerQueue) => (
+            <span key={workerQueue.name}>{workerQueue.name} c{workerQueue.concurrency}</span>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

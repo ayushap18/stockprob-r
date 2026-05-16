@@ -1,4 +1,5 @@
 import { runWalkForwardBacktest } from '../server/backtesting/backtest.js';
+import { createJobQueue, summarizeJob } from '../server/queue/jobs.js';
 import { createStorageAdapter } from '../server/storage/store.js';
 
 const DEFAULT_UNIVERSE = ['MSFT', 'AAPL', 'NVDA'];
@@ -8,6 +9,8 @@ export default async function handler(request, response) {
     return response.status(405).json({ error: 'method_not_allowed', message: 'Use GET or POST /api/backtest' });
   }
 
+  const queue = request.queue || createJobQueue();
+  let job = null;
   try {
     response.setHeader?.('Cache-Control', 's-maxage=900, stale-while-revalidate=1800');
     const source = request.method === 'POST' ? request.body || {} : request.query || {};
@@ -15,6 +18,14 @@ export default async function handler(request, response) {
     if (![5, 10, 20].includes(horizon)) return response.status(400).json({ error: 'horizon must be 5, 10, or 20' });
 
     const universe = normalizeTickers(source.universe || source.tickers || DEFAULT_UNIVERSE).slice(0, 8);
+    job = await queue.enqueue('backtest', {
+      universe,
+      horizon,
+      rebalance: source.rebalance || 'weekly',
+      top_n: Number(source.top_n || source.topN || 2),
+    });
+    job = await queue.start(job);
+
     const priceHistoryByTicker = source.priceHistoryByTicker || request.priceHistoryByTicker || createDemoHistory(universe);
     const result = await runWalkForwardBacktest({
       universe,
@@ -32,6 +43,12 @@ export default async function handler(request, response) {
       data_mode: source.priceHistoryByTicker || request.priceHistoryByTicker ? 'provided-history' : 'demo-history',
       warnings: [...(result.warnings || []), 'Demo backtest endpoint uses generated history unless caller provides priceHistoryByTicker'],
     };
+    job = await queue.complete(job, {
+      trades: payload.trades?.length || 0,
+      sharpe_ratio: payload.metrics?.sharpe_ratio ?? null,
+      cagr: payload.metrics?.cagr ?? null,
+    });
+    payload.queue_job = summarizeJob(job);
     const storage = request.storage || createStorageAdapter();
     await storage.saveBacktest({
       universe,
@@ -45,6 +62,7 @@ export default async function handler(request, response) {
 
     return response.status(200).json(payload);
   } catch (error) {
+    if (job) await queue.fail(job, error).catch(() => null);
     return response.status(error.status || 500).json({
       error: error.status ? error.message : 'Internal server error',
       details: error.details || undefined,

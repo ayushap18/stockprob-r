@@ -80,6 +80,8 @@ test('health endpoint reports service and provider status', async () => {
   assert.equal(response.body.required_provider_plan.phase_1.includes('POLYGON_API_KEY'), true);
   assert.equal(response.body.storage.kind, 'memory');
   assert.equal(response.body.storage.schema_plan.tables.some((table) => table.name === 'stockprob_predictions'), true);
+  assert.equal(response.body.queue.kind, 'memory');
+  assert.equal(response.body.queue.worker_plan.queues.some((queue) => queue.name === 'rank'), true);
 });
 
 test('outperform API returns structured 400 for bad horizon', async () => {

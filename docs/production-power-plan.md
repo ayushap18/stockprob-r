@@ -16,11 +16,15 @@ Status: started.
 - Add Redis for distributed cache, queue state, websocket fanout, and rate limiting.
 - Persist raw provider payload metadata for auditability.
 
+Status: storage adapter and in-process cache are implemented; Redis queue readiness is exposed with memory fallback.
+
 ## Phase 3: Jobs And Agents
 
 - Add background jobs for nightly universe refresh, feature calculation, rankings, and backtests.
 - Add bounded queue concurrency and provider rate-limit policies.
 - Split agents into market, fundamentals, news, filings, macro, options, earnings, risk, model, and backtest workers.
+
+Status: queue contract, rank/backtest job metadata, worker plan, and health visibility are implemented. Next production step is installing a BullMQ worker package and binding it to `REDIS_URL`.
 
 ## Phase 4: Modeling
 
