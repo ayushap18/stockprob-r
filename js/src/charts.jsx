@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useLayoutEffect, useRef, useState } from 'react';
 import {
   Area,
   Bar,
@@ -8,7 +8,6 @@ import {
   Legend,
   Line,
   LineChart as RechartsLineChart,
-  ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
@@ -28,9 +27,9 @@ function LineChart({ data, compact = false }) {
     spy: Number(row[2] || 1),
   }));
   return (
-    <div className={`chart-frame ${compact ? 'compact' : ''}`}>
-      <ResponsiveContainer width="100%" height="100%">
-        <RechartsLineChart data={chartData} margin={{ top: 12, right: 12, bottom: 8, left: 0 }}>
+    <MeasuredChartFrame className={`chart-frame ${compact ? 'compact' : ''}`}>
+      {({ width, height }) => (
+        <RechartsLineChart width={width} height={height} data={chartData} margin={{ top: 12, right: 12, bottom: 8, left: 0 }}>
           <CartesianGrid stroke="rgba(148, 163, 184, 0.13)" vertical={false} />
           <XAxis dataKey="period" tick={{ fill: '#94a3b8', fontSize: 10 }} axisLine={false} tickLine={false} />
           <YAxis domain={['dataMin', 'dataMax']} tickFormatter={(value) => `${Number(value).toFixed(2)}x`} tick={{ fill: '#94a3b8', fontSize: 10 }} axisLine={false} tickLine={false} width={44} />
@@ -39,8 +38,8 @@ function LineChart({ data, compact = false }) {
           <Line type="monotone" dataKey="spy" name="SPY" stroke="rgba(148, 163, 184, 0.82)" dot={false} strokeWidth={2} isAnimationActive={false} />
           <Line type="monotone" dataKey="model" name="Model" stroke="#22d3ee" dot={false} strokeWidth={2.5} isAnimationActive={false} />
         </RechartsLineChart>
-      </ResponsiveContainer>
-    </div>
+      )}
+    </MeasuredChartFrame>
   );
 }
 
@@ -57,9 +56,9 @@ function FanChart({ simulation }) {
     sample3: simulation.samplePaths[2]?.[index],
   }));
   return (
-    <div className="chart-frame fan">
-      <ResponsiveContainer width="100%" height="100%">
-        <ComposedChart data={chartData} margin={{ top: 12, right: 12, bottom: 8, left: 0 }}>
+    <MeasuredChartFrame className="chart-frame fan">
+      {({ width, height }) => (
+        <ComposedChart width={width} height={height} data={chartData} margin={{ top: 12, right: 12, bottom: 8, left: 0 }}>
           <CartesianGrid stroke="rgba(148, 163, 184, 0.13)" vertical={false} />
           <XAxis dataKey="day" tick={{ fill: '#94a3b8', fontSize: 10 }} axisLine={false} tickLine={false} />
           <YAxis tickFormatter={(value) => signedPct(value)} tick={{ fill: '#94a3b8', fontSize: 10 }} axisLine={false} tickLine={false} width={52} />
@@ -74,8 +73,8 @@ function FanChart({ simulation }) {
           <Line type="monotone" dataKey="sample2" name="Path B" stroke="rgba(251, 191, 36, 0.65)" dot={false} strokeWidth={1.1} isAnimationActive={false} />
           <Line type="monotone" dataKey="sample3" name="Path C" stroke="rgba(148, 163, 184, 0.55)" dot={false} strokeWidth={1} isAnimationActive={false} />
         </ComposedChart>
-      </ResponsiveContainer>
-    </div>
+      )}
+    </MeasuredChartFrame>
   );
 }
 
@@ -85,18 +84,37 @@ function BarStrip({ values, labels = [], negative = false }) {
     value: Number(value || 0),
   }));
   return (
-    <div className={`chart-frame bar ${negative ? 'drawdown' : ''}`}>
-      <ResponsiveContainer width="100%" height="100%">
-        <BarChart data={chartData} margin={{ top: 12, right: 12, bottom: 8, left: 0 }}>
+    <MeasuredChartFrame className={`chart-frame bar ${negative ? 'drawdown' : ''}`}>
+      {({ width, height }) => (
+        <BarChart width={width} height={height} data={chartData} margin={{ top: 12, right: 12, bottom: 8, left: 0 }}>
           <CartesianGrid stroke="rgba(148, 163, 184, 0.13)" vertical={false} />
           <XAxis dataKey="label" tick={{ fill: '#94a3b8', fontSize: 10 }} axisLine={false} tickLine={false} />
           <YAxis tickFormatter={(value) => pct(value)} tick={{ fill: '#94a3b8', fontSize: 10 }} axisLine={false} tickLine={false} width={44} />
           <Tooltip content={<ChartTooltip formatter={(value) => pct(value)} />} />
           <Bar dataKey="value" name={negative ? 'Drawdown' : 'Value'} fill={negative ? '#f43f5e' : '#22d3ee'} radius={[5, 5, 0, 0]} isAnimationActive={false} />
         </BarChart>
-      </ResponsiveContainer>
-    </div>
+      )}
+    </MeasuredChartFrame>
   );
+}
+
+function MeasuredChartFrame({ className, children }) {
+  const ref = useRef(null);
+  const [size, setSize] = useState({ width: 0, height: 0 });
+
+  useLayoutEffect(() => {
+    if (!ref.current) return undefined;
+    const update = () => {
+      const rect = ref.current.getBoundingClientRect();
+      setSize({ width: Math.max(1, Math.floor(rect.width)), height: Math.max(1, Math.floor(rect.height)) });
+    };
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(ref.current);
+    return () => observer.disconnect();
+  }, []);
+
+  return <div ref={ref} className={className}>{size.width > 1 && size.height > 1 ? children(size) : null}</div>;
 }
 
 function ChartTooltip({ active, payload, label, formatter = (value) => value }) {

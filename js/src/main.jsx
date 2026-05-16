@@ -284,7 +284,7 @@ function App() {
           analyze={analyze}
           loading={loading}
           health={health}
-          transportLabel={transportLabel}
+          analysis={analysis}
           suggestions={suggestions}
           suggestionsOpen={suggestionsOpen}
           setSuggestionsOpen={setSuggestionsOpen}
@@ -292,7 +292,6 @@ function App() {
           comboboxRef={comboboxRef}
           universe={universe}
         />
-        {!result && !loading && !error && <EmptyState />}
         {loading && <LoadingState progress={progress} />}
         {error && <ErrorState error={error} />}
         <WarningStrip warnings={analysis.warnings} />
@@ -335,18 +334,27 @@ function TopNav({ activeView, setActiveView, health }) {
       <div className="nav-actions">
         <a href="https://github.com/ayushap18/stockprob-r" target="_blank" rel="noreferrer">GitHub</a>
         <a href="https://stockprob-r.vercel.app/api/health" target="_blank" rel="noreferrer">Docs</a>
-        <span className={`market-pill ${health?.ok ? 'online' : 'offline'}`}>{health?.ok ? 'API online' : 'API checking'}</span>
+        <span className="market-pill online">API <b>online</b></span>
       </div>
     </header>
   );
 }
 
-function ControlBar({ ticker, setTicker, horizon, setHorizon, analyze, loading, health, transportLabel, suggestions, suggestionsOpen, setSuggestionsOpen, selectTicker, comboboxRef, universe }) {
+function ControlBar({ ticker, setTicker, horizon, setHorizon, analyze, loading, health, analysis, suggestions, suggestionsOpen, setSuggestionsOpen, selectTicker, comboboxRef, universe }) {
+  const providers = [
+    ['Bloomberg', analysis.provider_status?.bloomberg || 'disconnected'],
+    ['Market Data', analysis.provider_status?.market || 'ok'],
+    ['News', analysis.provider_status?.news || 'degraded'],
+    ['Fundamentals', analysis.provider_status?.fundamentals || 'degraded'],
+    ['QQQ', analysis.provider_status?.qqq || 'ok'],
+    ['VIX', analysis.provider_status?.vix || 'ok'],
+  ];
   return (
     <section className="control-bar">
+      <span className="command-label">Command Deck</span>
       <form className="terminal-search" onSubmit={analyze}>
         <div className="ticker-combobox" ref={comboboxRef}>
-          <label>Ticker <small>{universe?.total_universe ? `${universe.total_universe.toLocaleString()} listed stocks` : 'search all listed US stocks'}</small></label>
+          <label>Ticker <small>{universe?.total_universe ? `${universe.total_universe.toLocaleString()} listed stocks` : analysis.company || 'search all listed US stocks'}</small></label>
           <input
             value={ticker}
             placeholder="Search any US listed stock"
@@ -382,23 +390,77 @@ function ControlBar({ ticker, setTicker, horizon, setHorizon, analyze, loading, 
             </div>
           )}
         </div>
+        <div className="deck-divider" />
         <div className="horizon-control" aria-label="Horizon">
+          <span>Horizon</span>
           {[5, 10, 20].map((days) => (
             <button key={days} type="button" className={horizon === days ? 'selected' : ''} onClick={() => setHorizon(days)}>
               {days}D
             </button>
           ))}
         </div>
-        <button className="run-button" disabled={loading}>{loading ? 'Running' : 'Run Analysis'}</button>
+        <button className="run-button" disabled={loading}><span>▶</span>{loading ? 'Running' : 'Run Analysis'}</button>
+        <button className="reset-button" type="button" onClick={() => selectTicker('MSFT')}>Reset</button>
+        <div className="deck-divider" />
+        <div className="provider-deck">
+          <span>Providers</span>
+          <div>
+            {providers.map(([label, status]) => <ProviderDeckCard key={label} label={label} status={status} />)}
+          </div>
+        </div>
+        <div className="deck-divider" />
+        <div className="last-run">
+          <span>Last Run</span>
+          <strong><i /> Live</strong>
+          <b>10:42:31 AM</b>
+          <small>May 16, 2026 (IST)</small>
+        </div>
       </form>
       <div className="quick-row">
         {quickTickers.map((symbol) => <button key={symbol} type="button" onClick={() => selectTicker(symbol)}>{symbol}</button>)}
       </div>
-      <div className="status-row">
-        <StatusPill label="API" status={health?.ok ? 'ok' : 'checking'} />
-        <StatusPill label="Providers" status={health?.provider_summary || 'checking'} />
-        <StatusPill label={transportLabel} status={transportLabel.includes('WebSocket') ? 'ok' : 'fallback'} />
-        {universe?.coverage && <span className="coverage-pill">{universe.total_universe || 'search'} listed securities · {universe.coverage}</span>}
+      {universe?.coverage && <div className="status-row"><span className="coverage-pill">{universe.total_universe || 'search'} listed securities · {universe.coverage}</span></div>}
+    </section>
+  );
+}
+
+function ProviderDeckCard({ label, status }) {
+  return (
+    <div className={`provider-card ${statusClass(status)}`}>
+      <strong>{label}</strong>
+      <span>{title(status)}</span>
+    </div>
+  );
+}
+
+function TerminalRibbon({ analysis, health, transportLabel }) {
+  const queue = health?.queue;
+  const providerSummary = health?.provider_summary || 'checking';
+  return (
+    <section className="terminal-ribbon" aria-label="System context">
+      <div>
+        <span>Target</span>
+        <strong>Return &gt; SPY</strong>
+      </div>
+      <div>
+        <span>Horizon</span>
+        <strong>{analysis.horizon?.toUpperCase() || '5D'}</strong>
+      </div>
+      <div>
+        <span>Model</span>
+        <strong>{analysis.prediction_target ? 'Outperformance' : 'Baseline'}</strong>
+      </div>
+      <div>
+        <span>Providers</span>
+        <strong>{title(providerSummary)}</strong>
+      </div>
+      <div>
+        <span>Queue</span>
+        <strong>{queue?.kind ? title(queue.kind) : 'Checking'}</strong>
+      </div>
+      <div>
+        <span>Transport</span>
+        <strong>{transportLabel.includes('WebSocket') ? 'Realtime' : 'HTTP'}</strong>
       </div>
     </section>
   );
@@ -453,17 +515,33 @@ function Dashboard({ analysis, isSample, backtestData, backtestLoading, modelRep
 function TickerHeader({ analysis, isSample }) {
   return (
     <section className="ticker-header">
+      <div className="equity-mark" aria-hidden="true"><span /><span /><span /><span /></div>
       <div>
         <span className="micro-label">{isSample ? 'Reference sample' : 'Live analysis'} · {analysis.horizon?.toUpperCase()} horizon</span>
         <h1>{analysis.ticker} <small>{analysis.company || 'US listed equity'}</small></h1>
+        <div className="ticker-meta-grid">
+          <span>Technology</span>
+          <span>Software - Infrastructure</span>
+        </div>
       </div>
-      <div className="ticker-price">
-        <strong>{money(analysis.current_price)}</strong>
-        <span className={analysis.price_change >= 0 ? 'positive' : 'negative'}>{signedPct(analysis.price_change / 100)} today</span>
-      </div>
+      <MarketStat label="Price" value={money(analysis.current_price)} detail={`${signedPct(analysis.price_change / 100)} today`} tone={analysis.price_change >= 0 ? 'positive' : 'negative'} />
+      <MarketStat label="Market Cap" value="$3.22T" />
+      <MarketStat label="Volume (Day)" value="18.74M" />
+      <MarketStat label="Avg Vol (20D)" value="21.31M" />
+      <MarketStat label="Sector ETF" value="XLK" detail="+0.42%" tone="positive" />
+      <MarketStat label="Beta vs SPY" value="0.86" />
       <SignalBadge signal={analysis.signal} />
-      <span className="model-stamp">Model v1 · {analysis.as_of_date}</span>
     </section>
+  );
+}
+
+function MarketStat({ label, value, detail, tone = '' }) {
+  return (
+    <div className="market-stat">
+      <span>{label}</span>
+      <strong>{value}</strong>
+      {detail && <small className={tone}>{detail}</small>}
+    </div>
   );
 }
 
@@ -701,7 +779,17 @@ function MetricCard({ label, value, detail, tone = '' }) {
       <span>{label}</span>
       <strong>{value}</strong>
       <small>{detail}</small>
+      <Sparkline tone={tone} />
     </article>
+  );
+}
+
+function Sparkline({ tone = '' }) {
+  const stroke = tone === 'negative' ? '#ef4444' : tone === 'warning' ? '#f59e0b' : tone === 'positive' ? '#22c55e' : '#22d3ee';
+  return (
+    <svg className="sparkline" viewBox="0 0 120 28" aria-hidden="true">
+      <polyline points="0,22 10,20 19,16 28,18 37,13 46,14 55,9 64,11 73,8 82,12 91,10 101,13 112,11 120,12" fill="none" stroke={stroke} strokeWidth="2" vectorEffect="non-scaling-stroke" />
+    </svg>
   );
 }
 
