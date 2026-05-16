@@ -11,6 +11,17 @@ const CLIENT_CACHE_LIMIT = 120;
 const CLIENT_CACHE = new Map();
 const CLIENT_IN_FLIGHT = new Map();
 
+const companyProfiles = {
+  AAPL: { company: 'Apple Inc.', sector: 'Technology', industry: 'Consumer Electronics', exchange: 'NASDAQ' },
+  MSFT: { company: 'Microsoft Corporation', sector: 'Technology', industry: 'Software - Infrastructure', exchange: 'NASDAQ' },
+  NVDA: { company: 'NVIDIA Corporation', sector: 'Technology', industry: 'Semiconductors', exchange: 'NASDAQ' },
+  TSLA: { company: 'Tesla, Inc.', sector: 'Consumer Cyclical', industry: 'Auto Manufacturers', exchange: 'NASDAQ' },
+  AMZN: { company: 'Amazon.com, Inc.', sector: 'Consumer Cyclical', industry: 'Internet Retail', exchange: 'NASDAQ' },
+  GOOGL: { company: 'Alphabet Inc.', sector: 'Communication Services', industry: 'Internet Content & Information', exchange: 'NASDAQ' },
+  META: { company: 'Meta Platforms, Inc.', sector: 'Communication Services', industry: 'Internet Content & Information', exchange: 'NASDAQ' },
+  JPM: { company: 'JPMorgan Chase & Co.', sector: 'Financial Services', industry: 'Banks - Diversified', exchange: 'NYSE' },
+};
+
 const sampleAnalysis = {
   ticker: 'MSFT',
   company: 'Microsoft Corporation',
@@ -104,14 +115,6 @@ const backtestMetrics = [
   ['Hit Rate', '61%'],
 ];
 
-const newsItems = [
-  { title: 'Microsoft expands Azure AI infrastructure globally', source: 'Reuters', sentiment: 'positive', score: 0.78, age: '6h' },
-  { title: 'OpenAI and Microsoft deepen cloud partnership', source: 'Bloomberg', sentiment: 'positive', score: 0.65, age: '1d' },
-  { title: 'EU regulators open probe into Microsoft cloud bundling', source: 'CNBC', sentiment: 'negative', score: -0.62, age: '2d' },
-  { title: 'Microsoft to lay off additional staff in gaming division', source: 'The Verge', sentiment: 'negative', score: -0.48, age: '3d' },
-  { title: 'GitHub Copilot usage reaches 1.8M paid users', source: 'TechCrunch', sentiment: 'positive', score: 0.42, age: '4d' },
-];
-
 const equityCurve = [
   [0, 1, 1],
   [10, 1.012, 1.006],
@@ -155,6 +158,7 @@ function App() {
   const [health, setHealth] = useState(null);
   const [suggestions, setSuggestions] = useState([]);
   const [suggestionsOpen, setSuggestionsOpen] = useState(false);
+  const [selectedSecurity, setSelectedSecurity] = useState(null);
   const [universe, setUniverse] = useState(null);
   const [progress, setProgress] = useState('');
   const [rankingsData, setRankingsData] = useState(null);
@@ -169,7 +173,7 @@ function App() {
   const comboboxRef = useRef(null);
   const activeRequestRef = useRef(0);
   const transportLabel = useMemo(() => (realtimeUrl ? 'WebSocket realtime' : 'HTTP fallback'), []);
-  const analysis = useMemo(() => normalizeAnalysis(result || sampleAnalysis), [result]);
+  const analysis = useMemo(() => normalizeAnalysis(result || { ...sampleAnalysis, ticker }, selectedSecurity), [result, selectedSecurity, ticker]);
 
   useEffect(() => {
     cachedJson('/api/health', { ttlMs: 30_000 })
@@ -286,6 +290,8 @@ function App() {
     setError('');
     setProgress(realtimeUrl ? 'Opening realtime stream...' : 'Fetching market data');
     try {
+      const securityProfile = selectedSecurity || await lookupExactSecurity(ticker).catch(() => null);
+      if (securityProfile && isActive(requestNumber)) setSelectedSecurity(securityProfile);
       const data = realtimeUrl
         ? await analyzeRealtimeWithFallback({ ticker, horizon, onProgress: (message) => isActive(requestNumber) && setProgress(message) })
         : await analyzeHttp({ ticker, horizon });
@@ -309,6 +315,8 @@ function App() {
         <ControlBar
           ticker={ticker}
           setTicker={setTicker}
+          setResult={setResult}
+          setSelectedSecurity={setSelectedSecurity}
           horizon={horizon}
           setHorizon={setHorizon}
           analyze={analyze}
@@ -333,8 +341,10 @@ function App() {
     </main>
   );
 
-  function selectTicker(symbol) {
+  function selectTicker(symbol, security = null) {
     setTicker(symbol);
+    setSelectedSecurity(security);
+    setResult(null);
     setSuggestions([]);
     setSuggestionsOpen(false);
   }
@@ -370,7 +380,7 @@ function TopNav({ activeView, setActiveView, health }) {
   );
 }
 
-function ControlBar({ ticker, setTicker, horizon, setHorizon, analyze, loading, health, analysis, suggestions, suggestionsOpen, setSuggestionsOpen, selectTicker, comboboxRef, universe }) {
+function ControlBar({ ticker, setTicker, setResult, setSelectedSecurity, horizon, setHorizon, analyze, loading, health, analysis, suggestions, suggestionsOpen, setSuggestionsOpen, selectTicker, comboboxRef, universe }) {
   const providers = [
     ['Bloomberg', analysis.provider_status?.bloomberg || 'disconnected'],
     ['Market Data', analysis.provider_status?.market || 'ok'],
@@ -390,6 +400,8 @@ function ControlBar({ ticker, setTicker, horizon, setHorizon, analyze, loading, 
             placeholder="Search any US listed stock"
             onChange={(event) => {
               setTicker(event.target.value.toUpperCase());
+              setSelectedSecurity(null);
+              setResult(null);
               setSuggestionsOpen(true);
             }}
             onFocus={() => setSuggestionsOpen(true)}
@@ -406,7 +418,7 @@ function ControlBar({ ticker, setTicker, horizon, setHorizon, analyze, loading, 
           {suggestionsOpen && suggestions.length > 0 && (
             <div id="ticker-suggestions" className="suggestions" role="listbox">
               {suggestions.map((security) => (
-                <button key={`${security.symbol}-${security.exchange}`} type="button" role="option" onMouseDown={(event) => event.preventDefault()} onClick={() => selectTicker(security.symbol)}>
+                <button key={`${security.symbol}-${security.exchange}`} type="button" role="option" onMouseDown={(event) => event.preventDefault()} onClick={() => selectTicker(security.symbol, security)}>
                   <strong>{security.symbol}</strong>
                   <span>{security.name}</span>
                   <em>{security.exchange}</em>
@@ -522,7 +534,7 @@ function Dashboard({ analysis, isSample, backtestData, backtestLoading, modelRep
         <FeatureImportance rows={analysis.feature_importance} />
       </Panel>
       <Panel title="Recent News (7D)" className="span-3">
-        <NewsFeed items={analysis.recent_news?.length ? analysis.recent_news : newsItems} />
+        <NewsFeed items={analysis.recent_news?.length ? analysis.recent_news : fallbackNewsItems(analysis)} />
       </Panel>
       <Panel title="Provider Health" className="span-2">
         <ProviderGrid providerStatus={analysis.provider_status} />
@@ -543,13 +555,14 @@ function Dashboard({ analysis, isSample, backtestData, backtestLoading, modelRep
 function TickerHeader({ analysis, isSample }) {
   return (
     <section className="ticker-header">
-      <div className="equity-mark" aria-hidden="true"><span /><span /><span /><span /></div>
+      <div className="ticker-avatar" aria-hidden="true">{String(analysis.ticker || '?').slice(0, 2)}</div>
       <div>
         <span className="micro-label">{isSample ? 'Reference sample' : 'Live analysis'} · {analysis.horizon?.toUpperCase()} horizon</span>
-        <h1>{analysis.ticker} <small>{analysis.company || 'US listed equity'}</small></h1>
+        <h1>{analysis.ticker} <small>{analysis.company || `${analysis.ticker} listed security`}</small></h1>
         <div className="ticker-meta-grid">
-          <span>Technology</span>
-          <span>Software - Infrastructure</span>
+          <span>{analysis.exchange || 'US Listed'}</span>
+          <span>{analysis.sector || 'Sector unavailable'}</span>
+          <span>{analysis.industry || 'Industry unavailable'}</span>
         </div>
       </div>
       <MarketStat label="Price" value={money(analysis.current_price)} detail={`${signedPct(analysis.price_change / 100)} today`} tone={analysis.price_change >= 0 ? 'positive' : 'negative'} />
@@ -1112,6 +1125,13 @@ async function analyzeHttp({ ticker, horizon }) {
   return cachedJson(`/api/outperform?ticker=${encodeURIComponent(ticker)}&horizon=${horizon}`, { ttlMs: 60_000 });
 }
 
+async function lookupExactSecurity(ticker) {
+  const symbol = String(ticker || '').trim().toUpperCase();
+  if (!symbol) return null;
+  const payload = await cachedJson(`/api/universe?q=${encodeURIComponent(symbol)}&limit=10&include_etfs=false`, { ttlMs: 86_400_000 });
+  return (payload.results || []).find((security) => String(security.symbol).toUpperCase() === symbol) || null;
+}
+
 async function analyzeRealtimeWithFallback({ ticker, horizon, onProgress }) {
   try {
     return await analyzeRealtime({ ticker, horizon, onProgress });
@@ -1222,13 +1242,19 @@ async function cachedJson(url, { ttlMs = 120_000, signal } = {}) {
   return request;
 }
 
-function normalizeAnalysis(input) {
+function normalizeAnalysis(input, selectedSecurity = null) {
+  const ticker = String(input.ticker || sampleAnalysis.ticker).toUpperCase();
+  const profile = resolveCompanyProfile(ticker, selectedSecurity || input.security || input.profile);
   return {
     ...sampleAnalysis,
     ...input,
+    ticker,
     current_price: input.current_price || input.features?.technical?.current_price || sampleAnalysis.current_price,
     price_change: input.price_change ?? sampleAnalysis.price_change,
-    company: input.company || sampleAnalysis.company,
+    company: input.company || profile.company,
+    sector: input.sector || profile.sector,
+    industry: input.industry || profile.industry,
+    exchange: input.exchange || profile.exchange,
     signal: input.signal || input.final_signal || 'neutral',
     risk_label: input.risk_label || 'moderate',
     main_drivers: input.main_drivers?.length ? input.main_drivers : sampleAnalysis.main_drivers,
@@ -1236,6 +1262,43 @@ function normalizeAnalysis(input) {
     provider_status: input.provider_status || sampleAnalysis.provider_status,
     warnings: input.warnings?.length ? input.warnings : sampleAnalysis.warnings,
   };
+}
+
+function resolveCompanyProfile(ticker, security = null) {
+  const normalizedTicker = String(ticker || '').toUpperCase();
+  if (security?.symbol && String(security.symbol).toUpperCase() === normalizedTicker) {
+    return {
+      company: cleanSecurityName(security.name, normalizedTicker),
+      sector: security.sector || companyProfiles[normalizedTicker]?.sector || 'Sector unavailable',
+      industry: security.industry || companyProfiles[normalizedTicker]?.industry || 'Industry unavailable',
+      exchange: security.exchange || companyProfiles[normalizedTicker]?.exchange || 'US Listed',
+    };
+  }
+  return companyProfiles[normalizedTicker] || {
+    company: `${normalizedTicker} listed security`,
+    sector: 'Sector unavailable',
+    industry: 'Industry unavailable',
+    exchange: 'US Listed',
+  };
+}
+
+function cleanSecurityName(name, ticker) {
+  const cleaned = String(name || `${ticker} listed security`)
+    .replace(/\s+-\s+Common Stock$/i, '')
+    .replace(/\s+Common Stock$/i, '')
+    .replace(/\s+Class [A-Z]\s*$/i, '')
+    .trim();
+  return cleaned || `${ticker} listed security`;
+}
+
+function fallbackNewsItems(analysis) {
+  const company = analysis.company || analysis.ticker;
+  const ticker = analysis.ticker;
+  return [
+    { title: `${company} news feed degraded; neutral fallback applied`, source: 'Provider status', sentiment: 'neutral', score: 0, age: 'now' },
+    { title: `${ticker} macro and sector context included in model score`, source: 'Model context', sentiment: analysis.macro_score > 0.55 ? 'positive' : 'neutral', score: Math.max(-1, Math.min(1, Number(analysis.macro_score || 0.5) - 0.5)), age: 'live' },
+    { title: `${ticker} fundamentals provider degraded; quality score uses fallback`, source: 'FMP fallback', sentiment: 'neutral', score: 0, age: 'live' },
+  ];
 }
 
 function normalizeRanking(row, index, fallbackHorizon) {

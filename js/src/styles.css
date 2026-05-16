@@ -640,21 +640,22 @@ a { color: inherit; text-decoration: none; }
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
-.equity-mark {
+.ticker-avatar {
   display: grid;
-  grid-template-columns: repeat(2, 18px);
-  grid-template-rows: repeat(2, 18px);
-  gap: 2px;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border: 1px solid rgba(34, 211, 238, 0.42);
+  border-radius: 8px;
+  color: #e0f2fe;
+  background:
+    radial-gradient(circle at 22% 18%, rgba(103, 232, 249, 0.5), transparent 26%),
+    linear-gradient(135deg, rgba(8, 145, 178, 0.72), rgba(15, 23, 42, 0.94));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1), 0 0 26px rgba(34, 211, 238, 0.12);
+  font-size: 14px;
+  font-weight: 950;
+  letter-spacing: 0.04em;
 }
-
-.equity-mark span {
-  display: block;
-}
-
-.equity-mark span:nth-child(1) { background: #ef4444; }
-.equity-mark span:nth-child(2) { background: #84cc16; }
-.equity-mark span:nth-child(3) { background: #0ea5e9; }
-.equity-mark span:nth-child(4) { background: #facc15; }
 
 .ticker-header h1, .section-header h1 {
   margin: 0;
