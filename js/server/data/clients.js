@@ -1,4 +1,4 @@
-import { cleanRows } from '../features/math.js';
+import { cleanRows, finite } from '../features/math.js';
 import { cachedFetchJson, safeProviderCall } from './resilience.js';
 
 export function createCompositeDataClient() {
@@ -133,29 +133,31 @@ export class FundamentalsDataClient {
   async fetchFundamentals(ticker) {
     if (!process.env.FMP_API_KEY) return {};
     const [profile, ratios, growth] = await Promise.all([
-      cachedFetchJson(`https://financialmodelingprep.com/api/v3/profile/${encodeURIComponent(ticker)}?apikey=${process.env.FMP_API_KEY}`, { ttlMs: 86_400_000 }).catch(() => []),
-      cachedFetchJson(`https://financialmodelingprep.com/api/v3/ratios-ttm/${encodeURIComponent(ticker)}?apikey=${process.env.FMP_API_KEY}`, { ttlMs: 86_400_000 }).catch(() => []),
-      cachedFetchJson(`https://financialmodelingprep.com/api/v3/financial-growth/${encodeURIComponent(ticker)}?limit=1&apikey=${process.env.FMP_API_KEY}`, { ttlMs: 86_400_000 }).catch(() => []),
+      cachedFetchJson(`https://financialmodelingprep.com/stable/profile?symbol=${encodeURIComponent(ticker)}&apikey=${process.env.FMP_API_KEY}`, { ttlMs: 86_400_000 }).catch(() => []),
+      cachedFetchJson(`https://financialmodelingprep.com/stable/ratios-ttm?symbol=${encodeURIComponent(ticker)}&apikey=${process.env.FMP_API_KEY}`, { ttlMs: 86_400_000 }).catch(() => []),
+      cachedFetchJson(`https://financialmodelingprep.com/stable/financial-growth?symbol=${encodeURIComponent(ticker)}&apikey=${process.env.FMP_API_KEY}`, { ttlMs: 86_400_000 }).catch(() => []),
     ]);
     const ratio = ratios?.[0] || {};
     const grow = growth?.[0] || {};
-    return {
+    const profileRow = profile?.[0] || {};
+    const output = {
       revenue_growth_yoy: grow.revenueGrowth,
       eps_growth_yoy: grow.epsgrowth,
       gross_margin: ratio.grossProfitMarginTTM,
       operating_margin: ratio.operatingProfitMarginTTM,
       net_margin: ratio.netProfitMarginTTM,
       free_cash_flow_margin: ratio.freeCashFlowOperatingCashFlowRatioTTM,
-      debt_to_equity: ratio.debtEquityRatioTTM,
+      debt_to_equity: ratio.debtEquityRatioTTM ?? ratio.debtToEquityRatioTTM,
       current_ratio: ratio.currentRatioTTM,
       return_on_equity: ratio.returnOnEquityTTM,
-      return_on_invested_capital: ratio.returnOnCapitalEmployedTTM,
-      pe_ratio: ratio.peRatioTTM,
-      forward_pe_ratio: profile?.[0]?.price && profile?.[0]?.eps ? profile[0].price / profile[0].eps : null,
-      peg_ratio: ratio.pegRatioTTM,
+      return_on_invested_capital: ratio.returnOnCapitalEmployedTTM ?? ratio.returnOnInvestedCapitalTTM,
+      pe_ratio: ratio.peRatioTTM ?? ratio.priceToEarningsRatioTTM,
+      forward_pe_ratio: profileRow.price && profileRow.eps ? profileRow.price / profileRow.eps : null,
+      peg_ratio: ratio.pegRatioTTM ?? ratio.priceToEarningsGrowthRatioTTM,
       price_to_sales: ratio.priceToSalesRatioTTM,
       price_to_book: ratio.priceToBookRatioTTM,
     };
+    return Object.values(output).some(finite) ? output : {};
   }
 }
 

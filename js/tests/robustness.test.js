@@ -5,7 +5,7 @@ import outperformHandler from '../api/outperform.js';
 import { predictOutperformance } from '../server/models/predict.js';
 import { cachedFetchJson, cacheStats, clearCache, providerSummary, safeProviderCall } from '../server/data/resilience.js';
 import { infrastructureReadiness, requiredProviderPlan } from '../server/config/infrastructure.js';
-import { MacroDataClient } from '../server/data/clients.js';
+import { FundamentalsDataClient, MacroDataClient } from '../server/data/clients.js';
 import { calculateMacroFeatures } from '../server/features/macro.js';
 
 function mockResponse() {
@@ -234,6 +234,49 @@ test('MacroDataClient converts FRED observations into model macro inputs', async
     global.fetch = originalFetch;
     if (previousFredKey === undefined) delete process.env.FRED_API_KEY;
     else process.env.FRED_API_KEY = previousFredKey;
+    clearCache();
+  }
+});
+
+test('FundamentalsDataClient maps FMP stable endpoint fields', async () => {
+  clearCache();
+  const originalFetch = global.fetch;
+  const previousFmpKey = process.env.FMP_API_KEY;
+  process.env.FMP_API_KEY = 'test-fmp-key';
+  global.fetch = async (url) => {
+    const pathname = new URL(url).pathname;
+    let payload = [];
+    if (pathname.endsWith('/profile')) payload = [{ price: 300, eps: 8 }];
+    if (pathname.endsWith('/ratios-ttm')) {
+      payload = [
+        {
+          grossProfitMarginTTM: 0.48,
+          operatingProfitMarginTTM: 0.33,
+          netProfitMarginTTM: 0.27,
+          currentRatioTTM: 1.07,
+          debtToEquityRatioTTM: 1.7,
+          returnOnEquityTTM: 1.5,
+          priceToEarningsRatioTTM: 36,
+          priceToSalesRatioTTM: 9.8,
+          priceToBookRatioTTM: 41,
+        },
+      ];
+    }
+    if (pathname.endsWith('/financial-growth')) payload = [{ revenueGrowth: 0.06, epsgrowth: 0.22 }];
+    return { ok: true, json: async () => payload };
+  };
+
+  try {
+    const fundamentals = await new FundamentalsDataClient().fetchFundamentals('AAPL');
+    assert.equal(fundamentals.revenue_growth_yoy, 0.06);
+    assert.equal(fundamentals.eps_growth_yoy, 0.22);
+    assert.equal(fundamentals.debt_to_equity, 1.7);
+    assert.equal(fundamentals.pe_ratio, 36);
+    assert.equal(fundamentals.forward_pe_ratio, 37.5);
+  } finally {
+    global.fetch = originalFetch;
+    if (previousFmpKey === undefined) delete process.env.FMP_API_KEY;
+    else process.env.FMP_API_KEY = previousFmpKey;
     clearCache();
   }
 });
