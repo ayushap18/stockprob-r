@@ -91,7 +91,7 @@ Then point the dashboard at it:
 VITE_REALTIME_URL=ws://localhost:8091 npm run dev
 ```
 
-Supported realtime messages are `analyze`, `rank`, and `universe.search`. Vercel serverless deployment keeps using HTTP fallback because Vercel functions are not long-lived WebSocket servers.
+Supported realtime messages are `analyze`, `rank`, `universe.search`, `cancel`, `ping`, and `metrics`. The realtime server includes payload limits, heartbeat cleanup, per-client rate limiting, request lifecycle tracking, cancellation, and bounded-concurrent ranking. Vercel serverless deployment keeps using HTTP fallback because Vercel functions are not long-lived WebSocket servers.
 
 ## Robustness Model
 
@@ -104,6 +104,7 @@ The app is designed to fail closed and explain data gaps instead of silently inv
 - Serverless responses set cache headers for repeated public-data requests.
 - The listed-symbol universe is loaded from NASDAQ Trader symbol directories for NASDAQ, NYSE, NYSE American, NYSE Arca, Cboe BZX, and related listed US securities.
 - WebSocket analysis streams typed progress/result events in Node environments, while HTTP remains the safe deployment fallback.
+- Realtime requests are keyed by `request_id`, can be cancelled, and expose lightweight server metrics for active work.
 
 No market system can guarantee zero failures or perfect accuracy. StockProb-R reduces operational failure modes and makes uncertainty visible.
 

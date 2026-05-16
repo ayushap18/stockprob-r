@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import universeHandler from '../api/universe.js';
 import { parseNasdaqListed, parseOtherListed, searchUniverse } from '../server/data/universe.js';
 import { createRealtimeMessage, validateRealtimeRequest } from '../server/realtime/protocol.js';
+import { createRateLimiter, handleRealtimeMessage, mapWithConcurrency } from '../server/realtime/server.js';
 
 function mockResponse() {
   return {
@@ -84,4 +85,52 @@ test('realtime protocol validates requests and creates typed messages', () => {
   assert.equal(message.type, 'progress');
   assert.equal(message.payload.step, 'features');
   assert.equal(typeof message.id, 'string');
+});
+
+test('realtime handler supports ping and structured errors without throwing', async () => {
+  const messages = [];
+  await handleRealtimeMessage('{bad-json', { send: (message) => messages.push(message) });
+  await handleRealtimeMessage({ type: 'ping', request_id: 'ping-1' }, { send: (message) => messages.push(message) });
+
+  assert.equal(messages[0].type, 'error');
+  assert.equal(messages[1].type, 'pong');
+  assert.equal(messages[1].request_id, 'ping-1');
+});
+
+test('realtime handler can cancel an in-flight analysis request', async () => {
+  const messages = [];
+  const slowPredictor = () => new Promise((resolve) => setTimeout(() => resolve({ ticker: 'MSFT', signal: 'neutral' }), 30));
+
+  const running = handleRealtimeMessage(
+    { type: 'analyze', request_id: 'req-1', payload: { ticker: 'MSFT', horizon: 5 } },
+    { send: (message) => messages.push(message), predictFn: slowPredictor }
+  );
+  await handleRealtimeMessage({ type: 'cancel', request_id: 'cancel-1', payload: { request_id: 'req-1' } }, { send: (message) => messages.push(message) });
+  await running;
+
+  assert(messages.some((message) => message.type === 'analysis.cancelled'));
+  assert(!messages.some((message) => message.type === 'analysis.result'));
+});
+
+test('mapWithConcurrency caps active realtime ranking work', async () => {
+  let active = 0;
+  let maxActive = 0;
+  const values = await mapWithConcurrency([1, 2, 3, 4], 2, async (item) => {
+    active += 1;
+    maxActive = Math.max(maxActive, active);
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    active -= 1;
+    return item * 2;
+  });
+
+  assert.deepEqual(values, [2, 4, 6, 8]);
+  assert.equal(maxActive, 2);
+});
+
+test('rate limiter rejects bursts past configured realtime budget', () => {
+  const limiter = createRateLimiter({ maxEvents: 2, windowMs: 1_000 });
+  assert.equal(limiter.allow('client-a'), true);
+  assert.equal(limiter.allow('client-a'), true);
+  assert.equal(limiter.allow('client-a'), false);
+  assert.equal(limiter.allow('client-b'), true);
 });

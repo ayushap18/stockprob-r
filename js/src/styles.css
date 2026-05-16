@@ -86,11 +86,12 @@ h1 {
   top: calc(100% + 8px);
   left: 0;
   right: 0;
+  max-height: min(360px, 48vh);
   border: 1px solid rgba(148, 163, 184, 0.36);
   border-radius: 8px;
   background: rgba(2, 6, 23, 0.98);
   box-shadow: 0 20px 50px rgba(2, 6, 23, 0.38);
-  overflow: hidden;
+  overflow-y: auto;
 }
 
 .suggestions button {
@@ -258,6 +259,8 @@ ol {
 
 .health {
   display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
   margin-top: 16px;
   border-radius: 8px;
   padding: 9px 12px;
@@ -297,5 +300,17 @@ ol {
 
   .split {
     display: grid;
+  }
+
+  .split strong {
+    white-space: normal;
+  }
+
+  .suggestions button {
+    grid-template-columns: 60px minmax(0, 1fr);
+  }
+
+  .suggestions em {
+    display: none;
   }
 }

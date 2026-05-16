@@ -55,8 +55,11 @@ Protocol:
 - `analyze`: streams `analysis.started`, `analysis.progress`, and `analysis.result`.
 - `rank`: ranks up to 100 submitted tickers and streams `rank.item` events.
 - `universe.search`: searches the listed US symbol universe and returns `universe.results`.
+- `cancel`: marks an active `request_id` as cancelled and suppresses late results.
+- `ping`: returns `pong` for client keepalive checks.
+- `metrics`: returns active realtime request counts and ages.
 
-The realtime server sends heartbeat pings and terminates dead sockets to avoid stale client buildup.
+The realtime server sends heartbeat pings and terminates dead sockets to avoid stale client buildup. It also enforces a 64 KB message limit, per-client rate limiting, and bounded-concurrent ranking work.
 
 ## Accuracy Policy
 

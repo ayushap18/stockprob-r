@@ -1,4 +1,4 @@
-import React, { Component, useEffect, useMemo, useState } from 'react';
+import React, { Component, useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import './styles.css';
 
@@ -13,8 +13,10 @@ function App() {
   const [error, setError] = useState('');
   const [health, setHealth] = useState(null);
   const [suggestions, setSuggestions] = useState([]);
+  const [suggestionsOpen, setSuggestionsOpen] = useState(false);
   const [universe, setUniverse] = useState(null);
   const [progress, setProgress] = useState('');
+  const comboboxRef = useRef(null);
   const transportLabel = useMemo(() => (realtimeUrl ? 'WebSocket realtime' : 'HTTP fallback'), []);
 
   useEffect(() => {
@@ -25,28 +27,44 @@ function App() {
   }, []);
 
   useEffect(() => {
+    function closeOnOutsideClick(event) {
+      if (!comboboxRef.current?.contains(event.target)) setSuggestionsOpen(false);
+    }
+    document.addEventListener('mousedown', closeOnOutsideClick);
+    return () => document.removeEventListener('mousedown', closeOnOutsideClick);
+  }, []);
+
+  useEffect(() => {
+    if (!suggestionsOpen) return undefined;
     const query = ticker.trim();
     if (!query) {
       setSuggestions([]);
       return undefined;
     }
+    const controller = new AbortController();
     const timeout = setTimeout(() => {
-      fetch(`/api/universe?q=${encodeURIComponent(query)}&limit=8`)
+      fetch(`/api/universe?q=${encodeURIComponent(query)}&limit=8`, { signal: controller.signal })
         .then((response) => response.json())
         .then((payload) => {
+          if (controller.signal.aborted) return;
           setUniverse(payload);
           setSuggestions(payload.results || []);
         })
         .catch(() => {
+          if (controller.signal.aborted) return;
           setUniverse({ coverage: 'unavailable', warnings: ['Universe search unavailable'] });
           setSuggestions([]);
         });
     }, 220);
-    return () => clearTimeout(timeout);
-  }, [ticker]);
+    return () => {
+      clearTimeout(timeout);
+      controller.abort();
+    };
+  }, [ticker, suggestionsOpen]);
 
   async function analyze(event) {
     event.preventDefault();
+    setSuggestionsOpen(false);
     setLoading(true);
     setError('');
     setProgress(realtimeUrl ? 'Opening realtime stream...' : 'Fetching model output...');
@@ -72,12 +90,28 @@ function App() {
             Predict probability of outperforming SPY with technicals, fundamentals, news sentiment, macro context, risk scoring, and walk-forward backtesting.
           </p>
           <form className="search" onSubmit={analyze}>
-            <div className="ticker-combobox">
-              <input value={ticker} onChange={(event) => setTicker(event.target.value.toUpperCase())} aria-label="Ticker" autoComplete="off" />
-              {suggestions.length > 0 && (
-                <div className="suggestions">
+            <div className="ticker-combobox" ref={comboboxRef}>
+              <input
+                value={ticker}
+                onChange={(event) => {
+                  setTicker(event.target.value.toUpperCase());
+                  setSuggestionsOpen(true);
+                }}
+                onFocus={() => setSuggestionsOpen(true)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Escape') setSuggestionsOpen(false);
+                }}
+                aria-label="Ticker"
+                role="combobox"
+                aria-expanded={suggestionsOpen && suggestions.length > 0}
+                aria-controls="ticker-suggestions"
+                aria-autocomplete="list"
+                autoComplete="off"
+              />
+              {suggestionsOpen && suggestions.length > 0 && (
+                <div id="ticker-suggestions" className="suggestions" role="listbox">
                   {suggestions.map((security) => (
-                    <button key={`${security.symbol}-${security.exchange}`} type="button" onClick={() => setTicker(security.symbol)}>
+                    <button key={`${security.symbol}-${security.exchange}`} type="button" role="option" onMouseDown={(event) => event.preventDefault()} onClick={() => selectTicker(security.symbol)}>
                       <strong>{security.symbol}</strong>
                       <span>{security.name}</span>
                       <em>{security.exchange}</em>
@@ -95,7 +129,7 @@ function App() {
           </form>
           <div className="ticker-row">
             {quickTickers.map((symbol) => (
-              <button key={symbol} type="button" onClick={() => setTicker(symbol)}>{symbol}</button>
+              <button key={symbol} type="button" onClick={() => selectTicker(symbol)}>{symbol}</button>
             ))}
           </div>
           <p className={`health ${health?.ok ? 'health-ok' : 'health-warn'}`}>
@@ -111,6 +145,12 @@ function App() {
       </section>
     </main>
   );
+
+  function selectTicker(symbol) {
+    setTicker(symbol);
+    setSuggestions([]);
+    setSuggestionsOpen(false);
+  }
 }
 
 async function analyzeHttp({ ticker, horizon }) {
