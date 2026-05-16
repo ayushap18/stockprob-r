@@ -2,6 +2,7 @@ import { createCompositeDataClient } from '../server/data/clients.js';
 import { cacheStats, providerSummary } from '../server/data/resilience.js';
 import { infrastructureReadiness, requiredProviderPlan } from '../server/config/infrastructure.js';
 import { createJobQueue, queueWorkerPlan } from '../server/queue/jobs.js';
+import { workerStatus } from '../server/queue/worker.js';
 import { createStorageAdapter, storageSchemaPlan } from '../server/storage/store.js';
 
 export default async function handler(request, response) {
@@ -27,6 +28,7 @@ export default async function handler(request, response) {
     queue: {
       ...queueStatus,
       worker_plan: queueWorkerPlan(),
+      worker_status: workerStatus(),
     },
     required_provider_plan: requiredProviderPlan(),
     timestamp: new Date().toISOString(),

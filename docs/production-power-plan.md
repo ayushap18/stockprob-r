@@ -24,7 +24,7 @@ Status: storage adapter and in-process cache are implemented; Redis queue readin
 - Add bounded queue concurrency and provider rate-limit policies.
 - Split agents into market, fundamentals, news, filings, macro, options, earnings, risk, model, and backtest workers.
 
-Status: queue contract, rank/backtest job metadata, worker plan, and health visibility are implemented. Next production step is installing a BullMQ worker package and binding it to `REDIS_URL`.
+Status: queue contract, rank/backtest job metadata, worker plan, health visibility, and a local worker runner are implemented. Run `npm run worker -- --once` for local memory-queue draining or `npm run worker -- --status` to inspect worker readiness. Next production step is binding this runner to a BullMQ adapter when `REDIS_URL` is configured.
 
 ## Phase 4: Modeling
 

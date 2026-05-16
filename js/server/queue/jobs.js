@@ -75,6 +75,12 @@ export class MemoryJobQueueAdapter {
   async recentJobs(limit = 25) {
     return memoryState.jobs.slice(-positiveInteger(limit, 25)).reverse().map(summarizeJob);
   }
+
+  async nextQueued(types = []) {
+    const allowed = new Set((Array.isArray(types) ? types : [types]).filter(Boolean));
+    const job = memoryState.jobs.find((candidate) => candidate.status === 'queued' && (!allowed.size || allowed.has(candidate.type)));
+    return job ? { ...job } : null;
+  }
 }
 
 export class RedisQueueAdapter {
@@ -123,6 +129,10 @@ export class RedisQueueAdapter {
 
   async recentJobs() {
     return [];
+  }
+
+  async nextQueued() {
+    return null;
   }
 }
 

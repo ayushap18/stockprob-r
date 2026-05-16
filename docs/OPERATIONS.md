@@ -76,6 +76,18 @@ Protocol:
 
 The realtime server sends heartbeat pings and terminates dead sockets to avoid stale client buildup. It also enforces a 64 KB message limit, per-client rate limiting, and bounded-concurrent ranking work.
 
+## Worker Mode
+
+Queued rank, backtest, provider-refresh, and single-ticker analysis jobs use a shared worker contract. Local development uses the in-process memory queue:
+
+```bash
+cd js
+npm run worker -- --status
+npm run worker -- --once
+```
+
+Production deployments should set `REDIS_URL` and run `npm run worker` as a separate long-lived process beside the HTTP app and realtime server. The worker readiness object never exposes Redis secrets.
+
 Analysis progress steps:
 
 - `fetching_prices`

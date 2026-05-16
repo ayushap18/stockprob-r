@@ -549,6 +549,7 @@ function QueueHealth({ health }) {
   const queue = health?.queue;
   if (!queue) return <StateInline label="Queue pending" copy="Health endpoint has not returned queue metadata yet." />;
   const counts = queue.counts || {};
+  const worker = queue.worker_status || {};
   const workerQueues = queue.worker_plan?.queues || [];
   return (
     <div className="queue-health">
@@ -560,6 +561,10 @@ function QueueHealth({ health }) {
         <span>execution</span>
         <strong>{queue.distributed ? 'distributed workers' : 'memory fallback'}</strong>
       </div>
+      <div>
+        <span>worker</span>
+        <StatusPill label={worker.mode || queue.kind} status={worker.status === 'ready_for_distributed_worker' ? 'ok' : 'fallback'} />
+      </div>
       {['queued', 'running', 'completed', 'failed'].map((label) => (
         <div key={label}>
           <span>{label}</span>
@@ -567,6 +572,7 @@ function QueueHealth({ health }) {
         </div>
       ))}
       <small>{queue.message}</small>
+      {!!worker.required_processes?.length && <small>processes: {worker.required_processes.join(', ')}</small>}
       {!!workerQueues.length && (
         <div className="queue-plan">
           {workerQueues.slice(0, 5).map((workerQueue) => (
