@@ -13,6 +13,7 @@ const realtimeUrl = import.meta.env.VITE_REALTIME_URL || '';
 const views = ['Dashboard', 'Rankings', 'Backtests', 'Data Health'];
 const ChartRenderer = lazy(() => import('./charts.jsx'));
 const Analytics = lazy(() => import('./pages/Analytics.jsx'));
+const ConnectedDashboard = lazy(() => import('./pages/Dashboard.jsx'));
 const CLIENT_CACHE_LIMIT = 120;
 const CLIENT_CACHE = new Map();
 const CLIENT_IN_FLIGHT = new Map();
@@ -155,6 +156,13 @@ const fallbackModelReport = {
 };
 
 function App() {
+  if (window.location.pathname.startsWith('/dashboard')) {
+    return (
+      <Suspense fallback={<main className="terminal-shell"><section className="state-panel loading-state"><strong>Loading connected dashboard</strong></section></main>}>
+        <ConnectedDashboard />
+      </Suspense>
+    );
+  }
   if (window.location.pathname.startsWith('/analytics')) {
     return (
       <Suspense fallback={<main className="terminal-shell"><section className="state-panel loading-state"><strong>Loading analytics</strong></section></main>}>
@@ -383,6 +391,7 @@ function TopNav({ activeView, setActiveView, health, ticker = 'MSFT' }) {
             {view}
           </button>
         ))}
+        <a href={`/dashboard?ticker=${encodeURIComponent(ticker || 'MSFT')}`}>Connected</a>
         <a href={`/analytics?ticker=${encodeURIComponent(ticker || 'MSFT')}`}>Advanced Analytics</a>
       </nav>
       <div className="nav-actions">

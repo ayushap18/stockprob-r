@@ -15,19 +15,29 @@ const apiRoutes = new Map([
   ['/api/system/providers', './api/system/providers.js'],
   ['/api/system/queues', './api/system/queues.js'],
   ['/api/system/staleness', './api/system/staleness.js'],
+  ['/api/system/memory', './api/system/memory.js'],
+  ['/api/dashboard/system', './api/dashboard/system.js'],
   ['/api/market/benchmarks', './api/market/benchmarks.js'],
+  ['/api/charts/system/coverage', './api/charts/system/coverage.js'],
+  ['/api/stream/dashboard', './api/stream/dashboard.js'],
   ['/api/stream/quotes', './api/stream/quotes.js'],
   ['/api/stream/probabilities', './api/stream/probabilities.js'],
   ['/api/stream/system', './api/stream/system.js'],
   ['/api/stream/provider-health', './api/stream/provider-health.js'],
+  ['/api/stream/memory', './api/stream/memory.js'],
 ]);
 
 const dynamicApiRoutes = [
+  [/^\/api\/dashboard\/([^/]+)$/, './api/dashboard/[symbol]/index.js'],
+  [/^\/api\/dashboard\/([^/]+)\/snapshot$/, './api/dashboard/[symbol]/snapshot.js'],
+  [/^\/api\/dashboard\/([^/]+)\/charts$/, './api/dashboard/[symbol]/charts.js'],
+  [/^\/api\/dashboard\/([^/]+)\/refresh$/, './api/dashboard/[symbol]/refresh.js'],
   [/^\/api\/market\/quote\/([^/]+)$/, './api/market/quote/[symbol].js'],
   [/^\/api\/market\/ohlcv\/([^/]+)$/, './api/market/ohlcv/[symbol].js'],
   [/^\/api\/market\/technicals\/([^/]+)$/, './api/market/technicals/[symbol].js'],
   [/^\/api\/probabilities\/([^/]+)$/, './api/probabilities/[symbol].js'],
   [/^\/api\/charts\/price\/([^/]+)$/, './api/charts/price/[symbol].js'],
+  [/^\/api\/monte-carlo\/([^/]+)$/, './api/monte-carlo/[symbol]/index.js'],
 ];
 
 const root = process.cwd();

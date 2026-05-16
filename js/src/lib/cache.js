@@ -78,7 +78,18 @@ export async function staleWhileRevalidate(key, ttlMs, staleMs, producer) {
 }
 
 export function cacheStats() {
-  return { entries: memory.size, redis: process.env.REDIS_URL ? 'configured' : 'not_configured' };
+  return {
+    entries: memory.size,
+    redis: process.env.REDIS_URL ? 'configured' : 'not_configured',
+    approximateBytes: estimateMemoryBytes(),
+    inFlight: inFlight.size,
+    maxEntries: 800,
+  };
+}
+
+export function cleanupCache(max = 800) {
+  trimMemory(max);
+  return cacheStats();
 }
 
 async function coalesce(key, task) {
@@ -105,4 +116,12 @@ function stripSecrets(value) {
 
 function trimMemory(max = 800) {
   while (memory.size > max) memory.delete(memory.keys().next().value);
+}
+
+function estimateMemoryBytes() {
+  try {
+    return JSON.stringify([...memory.entries()].slice(-100)).length * Math.max(1, Math.ceil(memory.size / 100));
+  } catch {
+    return 0;
+  }
 }
