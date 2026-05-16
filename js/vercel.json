@@ -1,6 +1,7 @@
 {
   "rewrites": [
     { "source": "/api/health", "destination": "/api/health.js" },
+    { "source": "/api/universe", "destination": "/api/universe.js" },
     { "source": "/api/outperform", "destination": "/api/outperform.js" },
     { "source": "/(.*)", "destination": "/" }
   ]

@@ -57,7 +57,7 @@ h1 {
   margin-top: 34px;
 }
 
-.search input, .search select, .search button, .ticker-row button {
+.search input, .search select, .search > button, .ticker-row button {
   border: 1px solid rgba(255, 255, 255, 0.18);
   border-radius: 8px;
   padding: 14px 16px;
@@ -65,14 +65,65 @@ h1 {
 }
 
 .search input, .search select {
+  width: 100%;
   color: white;
   background: rgba(15, 23, 42, 0.72);
 }
 
-.search button, .ticker-row button {
+.search > button, .ticker-row button {
   color: #042f2e;
   background: #5eead4;
   cursor: pointer;
+}
+
+.ticker-combobox {
+  position: relative;
+}
+
+.suggestions {
+  position: absolute;
+  z-index: 10;
+  top: calc(100% + 8px);
+  left: 0;
+  right: 0;
+  border: 1px solid rgba(148, 163, 184, 0.36);
+  border-radius: 8px;
+  background: rgba(2, 6, 23, 0.98);
+  box-shadow: 0 20px 50px rgba(2, 6, 23, 0.38);
+  overflow: hidden;
+}
+
+.suggestions button {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  border: 0;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.18);
+  padding: 11px 12px;
+  color: #e2e8f0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.suggestions button:hover {
+  background: rgba(20, 184, 166, 0.16);
+}
+
+.suggestions span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.suggestions em {
+  color: #94a3b8;
+  font-style: normal;
+  font-size: 12px;
+  font-weight: 800;
 }
 
 .ticker-row {
@@ -212,6 +263,21 @@ ol {
   padding: 9px 12px;
   font-size: 13px;
   font-weight: 900;
+}
+
+.coverage, .progress {
+  margin: 10px 0 0;
+  color: #cbd5e1;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.progress {
+  display: inline-flex;
+  border-radius: 8px;
+  background: rgba(59, 130, 246, 0.18);
+  color: #bfdbfe;
+  padding: 9px 12px;
 }
 
 .health-ok {

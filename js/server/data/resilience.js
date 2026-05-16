@@ -41,6 +41,30 @@ export async function cachedFetchJson(url, { ttlMs = 300_000, timeoutMs = 10_000
   throw lastError;
 }
 
+export async function cachedFetchText(url, { ttlMs = 3_600_000, timeoutMs = 10_000, retries = 1 } = {}) {
+  const cached = memoryCache.get(url);
+  if (cached && Date.now() - cached.storedAt < ttlMs) return cached.value;
+
+  let lastError;
+  for (let attempt = 0; attempt <= retries; attempt += 1) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const response = await fetch(url, { signal: controller.signal, headers: { 'User-Agent': 'StockProb-R/1.0' } });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const value = await response.text();
+      memoryCache.set(url, { value, storedAt: Date.now() });
+      return value;
+    } catch (error) {
+      lastError = error;
+      if (attempt < retries) await delay(150 * (attempt + 1));
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+  throw lastError;
+}
+
 export function providerSummary(statuses = {}) {
   const values = Object.values(statuses);
   if (values.includes('failed')) return 'degraded';

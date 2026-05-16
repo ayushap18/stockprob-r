@@ -21,10 +21,12 @@ stockprob-r/
   js/
     api/
       outperform.js
+      universe.js
     server/
       data/
       features/
       models/
+      realtime/
       backtesting/
     src/
     tests/
@@ -72,8 +74,24 @@ API:
 
 ```bash
 curl "http://localhost:8080/api/outperform?ticker=MSFT&horizon=5"
+curl "http://localhost:8080/api/universe?q=micro&limit=10"
 curl "http://localhost:8080/api/health"
 ```
+
+Realtime WebSocket server for local or dedicated Node deployments:
+
+```bash
+cd js
+npm run realtime
+```
+
+Then point the dashboard at it:
+
+```bash
+VITE_REALTIME_URL=ws://localhost:8091 npm run dev
+```
+
+Supported realtime messages are `analyze`, `rank`, and `universe.search`. Vercel serverless deployment keeps using HTTP fallback because Vercel functions are not long-lived WebSocket servers.
 
 ## Robustness Model
 
@@ -84,6 +102,8 @@ The app is designed to fail closed and explain data gaps instead of silently inv
 - If core price history for the ticker or SPY is insufficient, the API returns a structured `503` rather than a misleading prediction.
 - The UI has an error boundary and a live API/provider health indicator.
 - Serverless responses set cache headers for repeated public-data requests.
+- The listed-symbol universe is loaded from NASDAQ Trader symbol directories for NASDAQ, NYSE, NYSE American, NYSE Arca, Cboe BZX, and related listed US securities.
+- WebSocket analysis streams typed progress/result events in Node environments, while HTTP remains the safe deployment fallback.
 
 No market system can guarantee zero failures or perfect accuracy. StockProb-R reduces operational failure modes and makes uncertainty visible.
 
@@ -103,6 +123,7 @@ Fallback providers:
 
 - Polygon.io for adjusted OHLCV
 - Yahoo Finance chart endpoint for development fallback
+- NASDAQ Trader listed-symbol directories for searchable US security coverage
 - Alpha Vantage for public news sentiment
 - Financial Modeling Prep for fundamentals
 

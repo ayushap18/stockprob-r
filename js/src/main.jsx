@@ -1,8 +1,9 @@
-import React, { Component, useEffect, useState } from 'react';
+import React, { Component, useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import './styles.css';
 
-const sampleTickers = ['AAPL', 'MSFT', 'NVDA', 'TSLA'];
+const quickTickers = ['AAPL', 'MSFT', 'NVDA', 'TSLA', 'AMZN', 'GOOGL', 'META', 'JPM'];
+const realtimeUrl = import.meta.env.VITE_REALTIME_URL || '';
 
 function App() {
   const [ticker, setTicker] = useState('MSFT');
@@ -11,6 +12,10 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [health, setHealth] = useState(null);
+  const [suggestions, setSuggestions] = useState([]);
+  const [universe, setUniverse] = useState(null);
+  const [progress, setProgress] = useState('');
+  const transportLabel = useMemo(() => (realtimeUrl ? 'WebSocket realtime' : 'HTTP fallback'), []);
 
   useEffect(() => {
     fetch('/api/health')
@@ -19,17 +24,39 @@ function App() {
       .catch(() => setHealth({ ok: false, provider_summary: 'failed' }));
   }, []);
 
+  useEffect(() => {
+    const query = ticker.trim();
+    if (!query) {
+      setSuggestions([]);
+      return undefined;
+    }
+    const timeout = setTimeout(() => {
+      fetch(`/api/universe?q=${encodeURIComponent(query)}&limit=8`)
+        .then((response) => response.json())
+        .then((payload) => {
+          setUniverse(payload);
+          setSuggestions(payload.results || []);
+        })
+        .catch(() => {
+          setUniverse({ coverage: 'unavailable', warnings: ['Universe search unavailable'] });
+          setSuggestions([]);
+        });
+    }, 220);
+    return () => clearTimeout(timeout);
+  }, [ticker]);
+
   async function analyze(event) {
     event.preventDefault();
     setLoading(true);
     setError('');
+    setProgress(realtimeUrl ? 'Opening realtime stream...' : 'Fetching model output...');
     try {
-      const response = await fetch(`/api/outperform?ticker=${encodeURIComponent(ticker)}&horizon=${horizon}`);
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Analysis failed');
+      const data = realtimeUrl ? await analyzeRealtime({ ticker, horizon, onProgress: setProgress }) : await analyzeHttp({ ticker, horizon });
       setResult(data);
+      setProgress('');
     } catch (requestError) {
       setError(requestError.message);
+      setProgress('');
     } finally {
       setLoading(false);
     }
@@ -45,7 +72,20 @@ function App() {
             Predict probability of outperforming SPY with technicals, fundamentals, news sentiment, macro context, risk scoring, and walk-forward backtesting.
           </p>
           <form className="search" onSubmit={analyze}>
-            <input value={ticker} onChange={(event) => setTicker(event.target.value.toUpperCase())} aria-label="Ticker" />
+            <div className="ticker-combobox">
+              <input value={ticker} onChange={(event) => setTicker(event.target.value.toUpperCase())} aria-label="Ticker" autoComplete="off" />
+              {suggestions.length > 0 && (
+                <div className="suggestions">
+                  {suggestions.map((security) => (
+                    <button key={`${security.symbol}-${security.exchange}`} type="button" onClick={() => setTicker(security.symbol)}>
+                      <strong>{security.symbol}</strong>
+                      <span>{security.name}</span>
+                      <em>{security.exchange}</em>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
             <select value={horizon} onChange={(event) => setHorizon(Number(event.target.value))} aria-label="Horizon">
               <option value={5}>5D</option>
               <option value={10}>10D</option>
@@ -54,13 +94,15 @@ function App() {
             <button disabled={loading}>{loading ? 'Calculating...' : 'Run'}</button>
           </form>
           <div className="ticker-row">
-            {sampleTickers.map((symbol) => (
+            {quickTickers.map((symbol) => (
               <button key={symbol} type="button" onClick={() => setTicker(symbol)}>{symbol}</button>
             ))}
           </div>
           <p className={`health ${health?.ok ? 'health-ok' : 'health-warn'}`}>
-            API {health?.ok ? 'online' : 'checking'} · providers {health?.provider_summary || 'checking'}
+            API {health?.ok ? 'online' : 'checking'} · providers {health?.provider_summary || 'checking'} · {transportLabel}
           </p>
+          {universe?.coverage && <p className="coverage">Universe: {universe.coverage} · {universe.total_universe || 'search'} listed securities</p>}
+          {progress && <p className="progress">{progress}</p>}
           {error && <p className="error">{error}</p>}
         </div>
       </section>
@@ -69,6 +111,47 @@ function App() {
       </section>
     </main>
   );
+}
+
+async function analyzeHttp({ ticker, horizon }) {
+  const response = await fetch(`/api/outperform?ticker=${encodeURIComponent(ticker)}&horizon=${horizon}`);
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error || data.message || 'Analysis failed');
+  return data;
+}
+
+function analyzeRealtime({ ticker, horizon, onProgress }) {
+  return new Promise((resolve, reject) => {
+    const socket = new WebSocket(realtimeUrl);
+    const requestId = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    const timeout = setTimeout(() => {
+      socket.close();
+      reject(new Error('Realtime analysis timed out'));
+    }, 60_000);
+
+    socket.addEventListener('open', () => {
+      socket.send(JSON.stringify({ type: 'analyze', request_id: requestId, payload: { ticker, horizon } }));
+    });
+    socket.addEventListener('message', (event) => {
+      const message = JSON.parse(event.data);
+      if (message.request_id && message.request_id !== requestId) return;
+      if (message.type === 'analysis.progress') onProgress?.(message.payload.step.replaceAll('_', ' '));
+      if (message.type === 'analysis.result') {
+        clearTimeout(timeout);
+        socket.close();
+        resolve(message.payload);
+      }
+      if (message.type === 'error') {
+        clearTimeout(timeout);
+        socket.close();
+        reject(new Error(message.payload.message || 'Realtime analysis failed'));
+      }
+    });
+    socket.addEventListener('error', () => {
+      clearTimeout(timeout);
+      reject(new Error('Realtime WebSocket unavailable. Use HTTP fallback or start npm run realtime.'));
+    });
+  });
 }
 
 function Result({ result }) {

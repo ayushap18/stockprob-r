@@ -6,6 +6,7 @@ StockProb-R is built to degrade safely when external data providers fail.
 
 ```bash
 curl https://stockprob-r.vercel.app/api/health
+curl "https://stockprob-r.vercel.app/api/universe?q=MSFT&limit=5"
 ```
 
 Expected response:
@@ -31,7 +32,31 @@ Expected response:
 - Missing optional fundamentals/news: return neutral fallback scores with warnings.
 - Missing VIX/QQQ: return degraded provider status and continue where possible.
 - Missing ticker or SPY price history: return `503` with row counts and provider status.
+- Missing listed-symbol directory: return the fallback seed universe and report the universe provider warning.
 - Invalid ticker or horizon: return `400`.
+
+## Realtime Mode
+
+The Vercel app uses HTTP APIs. For faster local or dedicated Node deployments, run the WebSocket service:
+
+```bash
+cd js
+npm run realtime
+```
+
+Dashboard opt-in:
+
+```bash
+VITE_REALTIME_URL=ws://localhost:8091 npm run dev
+```
+
+Protocol:
+
+- `analyze`: streams `analysis.started`, `analysis.progress`, and `analysis.result`.
+- `rank`: ranks up to 100 submitted tickers and streams `rank.item` events.
+- `universe.search`: searches the listed US symbol universe and returns `universe.results`.
+
+The realtime server sends heartbeat pings and terminates dead sockets to avoid stale client buildup.
 
 ## Accuracy Policy
 
