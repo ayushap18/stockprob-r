@@ -5,6 +5,8 @@ import outperformHandler from '../api/outperform.js';
 import { predictOutperformance } from '../server/models/predict.js';
 import { cachedFetchJson, cacheStats, clearCache, providerSummary, safeProviderCall } from '../server/data/resilience.js';
 import { infrastructureReadiness, requiredProviderPlan } from '../server/config/infrastructure.js';
+import { MacroDataClient } from '../server/data/clients.js';
+import { calculateMacroFeatures } from '../server/features/macro.js';
 
 function mockResponse() {
   return {
@@ -181,5 +183,57 @@ test('infrastructureReadiness maps configured providers and missing env', () => 
   } finally {
     if (previous === undefined) delete process.env.POLYGON_API_KEY;
     else process.env.POLYGON_API_KEY = previous;
+  }
+});
+
+test('MacroDataClient converts FRED observations into model macro inputs', async () => {
+  clearCache();
+  const originalFetch = global.fetch;
+  const previousFredKey = process.env.FRED_API_KEY;
+  process.env.FRED_API_KEY = 'test-fred-key';
+  global.fetch = async (url) => {
+    const seriesId = new URL(url).searchParams.get('series_id');
+    const values = {
+      DGS10: [
+        ['2026-01-01', '4.00'],
+        ['2026-02-01', '4.20'],
+      ],
+      DGS2: [['2026-02-01', '3.90']],
+      FEDFUNDS: [['2026-02-01', '4.50']],
+      CPIAUCSL: [
+        ['2025-02-01', '300'],
+        ['2026-02-01', '309'],
+      ],
+      UNRATE: [
+        ['2025-08-01', '4.2'],
+        ['2026-02-01', '4.0'],
+      ],
+      DTWEXBGS: [
+        ['2026-01-01', '120'],
+        ['2026-02-01', '118'],
+      ],
+    }[seriesId];
+    return {
+      ok: true,
+      json: async () => ({
+        observations: values.map(([date, value]) => ({ date, value })),
+      }),
+    };
+  };
+
+  try {
+    const macro = await new MacroDataClient().fetchMacroState('2026-02-28');
+    assert.equal(macro.treasury_10y, 4.2);
+    assert.equal(macro.yield_curve_spread, 0.30000000000000027);
+    assert.equal(Math.round(macro.cpi_yoy * 1000) / 1000, 0.03);
+    const features = calculateMacroFeatures({ macro });
+    assert.equal(features.fed_funds_rate, 4.5);
+    assert.equal(features.fred_as_of, '2026-02-01');
+    assert.equal(Number.isFinite(features.macro_sector_score), true);
+  } finally {
+    global.fetch = originalFetch;
+    if (previousFredKey === undefined) delete process.env.FRED_API_KEY;
+    else process.env.FRED_API_KEY = previousFredKey;
+    clearCache();
   }
 });

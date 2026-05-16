@@ -6,17 +6,19 @@ export function createCompositeDataClient() {
   const publicMarket = new PublicMarketDataClient();
   const news = new NewsDataClient();
   const fundamentals = new FundamentalsDataClient();
+  const macro = new MacroDataClient();
 
   return {
     async fetchPredictionDataset({ ticker, asOfDate }) {
       const bloombergStatus = await bloomberg.status();
-      const [stockResult, spyResult, qqqResult, vixResult, fundamentalsResult, newsResult] = await Promise.all([
+      const [stockResult, spyResult, qqqResult, vixResult, fundamentalsResult, newsResult, macroResult] = await Promise.all([
         safeProviderCall({ name: `${ticker} prices`, fallback: [], task: () => publicMarket.fetchDailyPrices(ticker, asOfDate) }),
         safeProviderCall({ name: 'SPY prices', fallback: [], task: () => publicMarket.fetchDailyPrices('SPY', asOfDate) }),
         safeProviderCall({ name: 'QQQ prices', fallback: [], task: () => publicMarket.fetchDailyPrices('QQQ', asOfDate) }),
         safeProviderCall({ name: 'VIX prices', fallback: [], task: () => publicMarket.fetchDailyPrices('^VIX', asOfDate) }),
         safeProviderCall({ name: 'fundamentals', fallback: {}, task: () => fundamentals.fetchFundamentals(ticker) }),
         safeProviderCall({ name: 'news', fallback: [], task: () => news.fetchCompanyNews(ticker, asOfDate) }),
+        safeProviderCall({ name: 'FRED macro', fallback: {}, task: () => macro.fetchMacroState(asOfDate) }),
       ]);
       const stockRows = stockResult.value;
       const spyRows = spyResult.value;
@@ -32,16 +34,17 @@ export function createCompositeDataClient() {
         sectorRows: spyRows,
         fundamentals: companyFundamentals,
         news: articles,
-        macro: {},
+        macro: macroResult.value,
         providerStatus: {
           bloomberg: bloombergStatus.connected ? 'connected' : 'disconnected',
           market: stockRows.length >= 220 && spyRows.length >= 220 ? 'ok' : 'failed',
           news: newsResult.status,
           fundamentals: fundamentalsResult.status,
+          fred: macroResult.status,
           qqq: qqqResult.status,
           vix: vixResult.status,
         },
-        providerWarnings: [stockResult.warning, spyResult.warning, qqqResult.warning, vixResult.warning, fundamentalsResult.warning, newsResult.warning].filter(Boolean),
+        providerWarnings: [stockResult.warning, spyResult.warning, qqqResult.warning, vixResult.warning, fundamentalsResult.warning, newsResult.warning, macroResult.warning].filter(Boolean),
       };
     },
     status() {
@@ -156,7 +159,68 @@ export class FundamentalsDataClient {
   }
 }
 
+export class MacroDataClient {
+  async fetchMacroState(asOfDate) {
+    if (!process.env.FRED_API_KEY) return {};
+    const [tenYear, twoYear, fedFunds, cpi, unemployment, dollar] = await Promise.all([
+      this.fetchFredSeries('DGS10', asOfDate, 80),
+      this.fetchFredSeries('DGS2', asOfDate, 80),
+      this.fetchFredSeries('FEDFUNDS', asOfDate, 24),
+      this.fetchFredSeries('CPIAUCSL', asOfDate, 24),
+      this.fetchFredSeries('UNRATE', asOfDate, 24),
+      this.fetchFredSeries('DTWEXBGS', asOfDate, 80),
+    ]);
+    const latest10y = latestObservation(tenYear);
+    const prior10y = priorObservation(tenYear, 21);
+    const latest2y = latestObservation(twoYear);
+    const latestDollar = latestObservation(dollar);
+    const priorDollar = priorObservation(dollar, 21);
+    const latestCpi = latestObservation(cpi);
+    const cpiYearAgo = priorObservation(cpi, 12);
+    const latestUnemployment = latestObservation(unemployment);
+    const priorUnemployment = priorObservation(unemployment, 6);
+
+    return {
+      fed_funds_rate: latestObservation(fedFunds)?.value ?? null,
+      treasury_10y: latest10y?.value ?? null,
+      treasury_2y: latest2y?.value ?? null,
+      yield_curve_spread: latest10y && latest2y ? latest10y.value - latest2y.value : null,
+      treasury_10y_change: latest10y && prior10y ? (latest10y.value - prior10y.value) / 100 : null,
+      cpi_yoy: latestCpi && cpiYearAgo ? latestCpi.value / cpiYearAgo.value - 1 : null,
+      unemployment_rate: latestUnemployment?.value ?? null,
+      unemployment_6m_change: latestUnemployment && priorUnemployment ? latestUnemployment.value - priorUnemployment.value : null,
+      dollar_index_trend: latestDollar && priorDollar ? latestDollar.value / priorDollar.value - 1 : null,
+      fred_pulled_at: new Date().toISOString(),
+      fred_as_of: [latest10y, latest2y, latestCpi, latestUnemployment].map((row) => row?.date).filter(Boolean).sort().at(-1) ?? null,
+    };
+  }
+
+  async fetchFredSeries(seriesId, asOfDate, limit) {
+    const url = new URL('https://api.stlouisfed.org/fred/series/observations');
+    url.searchParams.set('series_id', seriesId);
+    url.searchParams.set('api_key', process.env.FRED_API_KEY);
+    url.searchParams.set('file_type', 'json');
+    url.searchParams.set('sort_order', 'desc');
+    url.searchParams.set('limit', String(limit));
+    url.searchParams.set('observation_end', asOfDate);
+    const data = await cachedFetchJson(url.toString(), { ttlMs: 21_600_000, timeoutMs: 8_000 }).catch(() => null);
+    return (data?.observations || [])
+      .map((row) => ({ date: row.date, value: Number(row.value) }))
+      .filter((row) => Number.isFinite(row.value))
+      .sort((first, second) => first.date.localeCompare(second.date));
+  }
+}
+
 function alphaTime(value) {
   if (!value || value.length < 8) return null;
   return `${value.slice(0, 4)}-${value.slice(4, 6)}-${value.slice(6, 8)}T${value.slice(9, 11) || '00'}:${value.slice(11, 13) || '00'}:00Z`;
+}
+
+function latestObservation(rows) {
+  return rows.at(-1) ?? null;
+}
+
+function priorObservation(rows, periodsBack) {
+  if (!rows.length) return null;
+  return rows[Math.max(0, rows.length - 1 - periodsBack)] ?? rows[0] ?? null;
 }
