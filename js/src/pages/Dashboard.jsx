@@ -85,41 +85,38 @@ export default function DashboardPage() {
     }
   }
 
-  if (!snapshot) {
-    return <AppShell active="Dashboard"><LoadingSkeleton label="Loading dashboard" /></AppShell>;
-  }
-
-  const probabilities = snapshot.probabilities || {};
+  const probabilities = snapshot?.probabilities || {};
   const predictionView = {
-    technicalScore: probabilities.momentumScore || snapshot.scores?.technical,
+    technicalScore: probabilities.momentumScore || snapshot?.scores?.technical,
     features: {
       technical: {
-        rsi_14: snapshot.technicals?.rsi_14,
-        volume_z_score: snapshot.technicals?.volume_z_score,
-        beta_vs_spy: snapshot.technicals?.beta_to_spy || snapshot.technicals?.beta_vs_spy,
-        sector_relative_strength: snapshot.technicals?.relative_strength_vs_spy,
-        mean_reversion_score: snapshot.technicals?.mean_reversion_score,
+        rsi_14: snapshot?.technicals?.rsi_14,
+        volume_z_score: snapshot?.technicals?.volume_z_score,
+        beta_vs_spy: snapshot?.technicals?.beta_to_spy || snapshot?.technicals?.beta_vs_spy,
+        sector_relative_strength: snapshot?.technicals?.relative_strength_vs_spy,
+        mean_reversion_score: snapshot?.technicals?.mean_reversion_score,
       },
       fundamental: {
-        revenue_growth_yoy: snapshot.fundamentals?.revenueGrowth,
-        eps_growth_yoy: snapshot.fundamentals?.epsGrowth,
-        gross_margin: snapshot.fundamentals?.grossMargin,
-        net_margin: snapshot.fundamentals?.netMargin,
-        return_on_equity: snapshot.fundamentals?.roe,
-        return_on_invested_capital: snapshot.fundamentals?.roic,
-        balance_sheet_score: 1 - (snapshot.fundamentals?.debtToEquity || 0.42) / 2,
-        valuation_score: snapshot.scores?.fundamental,
+        revenue_growth_yoy: snapshot?.fundamentals?.revenueGrowth,
+        eps_growth_yoy: snapshot?.fundamentals?.epsGrowth,
+        gross_margin: snapshot?.fundamentals?.grossMargin,
+        net_margin: snapshot?.fundamentals?.netMargin,
+        return_on_equity: snapshot?.fundamentals?.roe,
+        return_on_invested_capital: snapshot?.fundamentals?.roic,
+        balance_sheet_score: 1 - (snapshot?.fundamentals?.debtToEquity || 0.42) / 2,
+        valuation_score: snapshot?.scores?.fundamental,
       },
     },
   };
   const warnings = [...new Set([...(live.warnings || []), ...(live.isDemo ? ['Demo fallback active'] : [])])].slice(0, 4);
   const expectedAnnual = Math.max(-0.6, Math.min(0.8, Number(probabilities.expectedReturn || 0) * (252 / Math.max(1, Number(controls.horizonDays) || 5))));
-  const volatilityAnnual = Math.max(0.08, Math.min(1.4, Number(snapshot.technicals?.volatility_20d || probabilities.riskScore || 0.24)));
+  const volatilityAnnual = Math.max(0.08, Math.min(1.4, Number(snapshot?.technicals?.volatility_20d || probabilities.riskScore || 0.24)));
   const priceControls = <><RangeSelector value={chartRange} onChange={setChartRange} /><IndicatorControls value={priceIndicators} onChange={setPriceIndicators} /></>;
   const rangeControls = <RangeSelector value={chartRange} onChange={setChartRange} />;
   const openZoom = (key) => zoom.openChart({ key });
   const zoomedChart = useMemo(() => {
     const key = zoom.zoomedChart?.key;
+    if (!snapshot) return zoom.zoomedChart;
     if (!key) return zoom.zoomedChart;
     const charts = {
       price: {
@@ -191,7 +188,11 @@ export default function DashboardPage() {
       },
     };
     return charts[key] || zoom.zoomedChart;
-  }, [chartRange, controls.benchmark, controls.gainThreshold, controls.horizonDays, controls.lossThreshold, controls.scenario, expectedAnnual, live.isDemo, priceControls, priceIndicators, rangeControls, rangeData.benchmark, rangeData.candles, rangeData.probabilityHistory, scenarioSimulation, snapshot.candles, snapshot.features, snapshot.symbol, volatilityAnnual, zoom.zoomedChart]);
+  }, [chartRange, controls.benchmark, controls.gainThreshold, controls.horizonDays, controls.lossThreshold, controls.scenario, expectedAnnual, live.isDemo, priceControls, priceIndicators, rangeControls, rangeData.benchmark, rangeData.candles, rangeData.probabilityHistory, scenarioSimulation, snapshot, volatilityAnnual, zoom.zoomedChart]);
+
+  if (!snapshot) {
+    return <AppShell active="Dashboard"><LoadingSkeleton label="Loading dashboard" /></AppShell>;
+  }
 
   return (
     <AppShell active="Dashboard" rightSlot={<StatusBadge status={live.status}>{live.status || 'live'}</StatusBadge>}>
