@@ -170,6 +170,31 @@
   box-shadow: var(--terminal-shadow);
 }
 
+.screen-command {
+  grid-template-columns: minmax(300px, 420px) 1fr auto;
+  align-items: end;
+}
+
+.filter-field {
+  display: grid;
+  gap: 4px;
+  min-width: 104px;
+}
+
+.filter-field span {
+  color: var(--text-secondary);
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.filter-field .investment-input,
+.filter-field .investment-select {
+  min-height: 31px;
+  font-size: 11px;
+}
+
 .command-center {
   grid-template-columns: minmax(380px, 520px) 1fr auto;
 }
@@ -651,6 +676,15 @@
 
 .compact-table-wrap {
   overflow-x: auto;
+}
+
+.mini-pod .compact-table th,
+.mini-pod .compact-table td {
+  padding: 7px 6px;
+}
+
+.analytics-command {
+  padding: 14px;
 }
 
 .factor-list {

@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { generateDemoProbabilityTrend } from '../lib/demoChartData.js';
 import { loadAnalyticsBundle } from '../lib/chartApi.js';
+import AppShell from '../components/ui/AppShell.jsx';
+import StatusBadge from '../components/ui/StatusBadge.jsx';
 import {
   BacktestDrawdownChart,
   BacktestEquityCurve,
@@ -88,14 +90,13 @@ export default function Analytics() {
   }
 
   return (
-    <main className="terminal-shell analytics-shell">
-      <AnalyticsNav />
+    <AppShell active="Analytics" rightSlot={<StatusBadge status={bundle?.prediction?.isDemo ? 'demo' : 'live'}>{bundle?.prediction?.source || 'analytics'}</StatusBadge>}>
       <section className="analytics-layout">
-        <header className="analytics-header">
+        <header className="analytics-header investment-card analytics-command">
           <div>
             <span className="micro-label">Advanced Analytics</span>
             <h1>{ticker} Quant Charting Layer</h1>
-            <p>Probabilistic outperformance research: price, model, Monte Carlo, features, ranking, backtest, provider and macro views.</p>
+            <p>Price, model, Monte Carlo, features, ranking, backtest, provider and macro views.</p>
           </div>
           <form onSubmit={submit} className="analytics-search">
             <input value={input} onChange={(event) => setInput(event.target.value.toUpperCase())} aria-label="Analytics ticker" />
@@ -191,7 +192,7 @@ export default function Analytics() {
         )}
       </section>
       <ChartZoomModal chart={zoom.zoomedChart} onClose={zoom.closeChart} />
-    </main>
+    </AppShell>
   );
 }
 
@@ -202,24 +203,6 @@ function ZoomableAnalyticsChart({ title, controls = null, zoom, children }) {
       {controls && <div className="chart-card-controls">{controls}</div>}
       {children}
     </div>
-  );
-}
-
-function AnalyticsNav() {
-  return (
-    <header className="top-nav">
-      <a className="brand" href="/stockprob">
-        <span className="brand-mark">∑</span>
-        <div><strong>StockProb-R</strong><small>Advanced analytics</small></div>
-      </a>
-      <nav>
-        <a href="/stockprob">Dashboard</a>
-        <a href={`/dashboard?ticker=${encodeURIComponent(new URLSearchParams(window.location.search).get('ticker') || 'MSFT')}`}>Connected</a>
-        <a className="active" href="/analytics">Advanced Analytics</a>
-        <a href="https://github.com/ayushap18/stockprob-r" target="_blank" rel="noreferrer">GitHub</a>
-      </nav>
-      <div className="nav-actions"><span className="market-pill online">API <b>online</b></span></div>
-    </header>
   );
 }
 

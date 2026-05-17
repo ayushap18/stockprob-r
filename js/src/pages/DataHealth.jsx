@@ -25,10 +25,17 @@ export default function DataHealthPage() {
   const coverageRows = useMemo(() => Object.entries(data?.coverage || {}).map(([key, value]) => ({ key, value })), [data?.coverage]);
   const queueRows = useMemo(() => Object.entries(data?.queues || {}).map(([key, value]) => ({ key, value })), [data?.queues]);
   const memory = data?.memory || {};
+  const incidentRows = useMemo(() => providers.filter((row) => !['ok', 'fallback'].includes(String(row.status).toLowerCase())).map((row, index) => ({
+    id: index + 1,
+    severity: row.status === 'not_configured' ? 'missing' : 'degraded',
+    provider: row.provider,
+    message: row.status === 'not_configured' ? 'API key not configured; fallback path active' : 'Provider degraded; watch latency and fallback count',
+    lastSeen: row.lastErrorAt || row.lastSuccessAt || 'n/a',
+  })), [providers]);
 
   return (
     <AppShell active="Data Health" rightSlot={<StatusBadge status={data?.status || 'degraded'}>{data?.status || 'loading'}</StatusBadge>}>
-      <section className="investment-command">
+      <section className="investment-command screen-command">
         <div>
           <span className="section-kicker">Data Health</span>
           <h1 style={{ margin: '4px 0 0', fontSize: 22 }}>Provider, Cache, Queue, Memory</h1>
@@ -52,6 +59,8 @@ export default function DataHealthPage() {
         <MetricCard label="Cache Entries" value={String(memory.cacheEntries ?? memory.entries ?? 0)} caption="memory/redis" tone="neutral" />
         <MetricCard label="Hit Rate" value={pct(memory.cacheHitRate)} caption="cache" tone={(memory.cacheHitRate || 0) > 0.55 ? 'bull' : 'warn'} />
         <MetricCard label="In Flight" value={String(memory.activeInFlightRequests ?? 0)} caption="requests" tone={(memory.activeInFlightRequests || 0) > 20 ? 'warn' : 'bull'} />
+        <MetricCard label="Subscriptions" value={String(memory.activeSubscriptions ?? 0)} caption="live clients" tone="neutral" />
+        <MetricCard label="Polling" value={String(memory.activePollingLoops ?? 0)} caption="fallback loops" tone={(memory.activePollingLoops || 0) > 12 ? 'warn' : 'bull'} />
       </section>
 
       <section className="investment-grid two" style={{ marginTop: 10 }}>
@@ -85,12 +94,23 @@ export default function DataHealthPage() {
         </section>
       </section>
 
-      <section className="table-card" style={{ marginTop: 10 }}>
-        <div className="section-title-row"><div><span className="section-kicker">Staleness</span><h2>Freshness Histogram</h2></div></div>
-        <CompactTable columns={[{ key: 'bucket', label: 'Age' }, { key: 'count', label: 'Symbols' }]} rows={data?.staleness || []} />
+      <section className="investment-grid two" style={{ marginTop: 10 }}>
+        <section className="table-card">
+          <div className="section-title-row"><div><span className="section-kicker">Staleness</span><h2>Freshness Histogram</h2></div></div>
+          <CompactTable columns={[{ key: 'bucket', label: 'Age' }, { key: 'count', label: 'Symbols' }]} rows={data?.staleness || []} />
+        </section>
+        <section className="table-card">
+          <div className="section-title-row"><div><span className="section-kicker">Incidents</span><h2>Provider Warnings</h2></div></div>
+          <CompactTable columns={[{ key: 'severity', label: 'Severity' }, { key: 'provider', label: 'Provider' }, { key: 'message', label: 'Message' }, { key: 'lastSeen', label: 'Last Seen' }]} rows={incidentRows} renderCell={renderIncident} />
+        </section>
       </section>
     </AppShell>
   );
+}
+
+function renderIncident(row, column) {
+  if (column.key === 'severity') return <StatusBadge status={row.severity === 'missing' ? 'degraded' : row.severity}>{row.severity}</StatusBadge>;
+  return row[column.key] ?? 'n/a';
 }
 
 function renderProvider(row, column) {

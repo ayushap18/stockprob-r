@@ -13,6 +13,10 @@ export default function RankingsPage() {
   const base = (params.get('base') || params.get('ticker') || 'MSFT').toUpperCase();
   const [query, setQuery] = useState('');
   const [sector, setSector] = useState('All');
+  const [minProbability, setMinProbability] = useState(0.5);
+  const [maxRisk, setMaxRisk] = useState(0.5);
+  const [minConfidence, setMinConfidence] = useState(0);
+  const [freshness, setFreshness] = useState('All');
   const [sortKey, setSortKey] = useState('probability');
   const [payload, setPayload] = useState(null);
   const [similar, setSimilar] = useState([]);
@@ -32,22 +36,39 @@ export default function RankingsPage() {
   }, [query, base]);
 
   const rows = useMemo(() => {
-    const filtered = filterRankings(payload?.data || [], { query, sector });
+    const filtered = filterRankings(payload?.data || [], { query, sector, minProbability, maxRisk })
+      .filter((row) => row.confidence >= minConfidence)
+      .filter((row) => freshness === 'All' || String(row.providerStatus || row.freshness).toLowerCase().includes(freshness.toLowerCase()));
     return [...filtered].sort((a, b) => Number(b[sortKey] || 0) - Number(a[sortKey] || 0));
-  }, [payload?.data, query, sector, sortKey]);
+  }, [payload?.data, query, sector, minProbability, maxRisk, minConfidence, freshness, sortKey]);
 
   const sectors = useMemo(() => ['All', ...new Set((payload?.data || []).map((row) => row.sector))], [payload?.data]);
   const leaders = rows.slice(0, 4);
+  const groups = useMemo(() => ({
+    bullish: [...rows].sort((a, b) => b.probability - a.probability).slice(0, 3),
+    lowRisk: [...rows].sort((a, b) => a.risk - b.risk).slice(0, 3),
+    confidence: [...rows].sort((a, b) => b.confidence - a.confidence).slice(0, 3),
+    pressure: [...rows].sort((a, b) => a.expectedExcessReturn - b.expectedExcessReturn).slice(0, 3),
+  }), [rows]);
 
   return (
     <AppShell active="Rankings" rightSlot={<StatusBadge status={payload?.meta?.isDemo ? 'demo' : 'live'}>{payload?.meta?.source || 'rankings'}</StatusBadge>}>
-      <section className="investment-command">
+      <section className="investment-command screen-command">
         <div>
           <span className="section-kicker">Screener</span>
           <input className="investment-input" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Ticker, company, sector, theme" />
         </div>
         <div className="investment-context">
+          <label className="filter-field"><span>Sector</span>
           <select className="investment-select" value={sector} onChange={(event) => setSector(event.target.value)}>{sectors.map((item) => <option key={item}>{item}</option>)}</select>
+          </label>
+          <label className="filter-field"><span>Prob Outperform</span><input className="investment-input" type="number" min="0" max="1" step="0.01" value={minProbability} onChange={(event) => setMinProbability(Number(event.target.value))} /></label>
+          <label className="filter-field"><span>Risk Score</span><input className="investment-input" type="number" min="0" max="1" step="0.01" value={maxRisk} onChange={(event) => setMaxRisk(Number(event.target.value))} /></label>
+          <label className="filter-field"><span>Confidence</span><input className="investment-input" type="number" min="0" max="1" step="0.01" value={minConfidence} onChange={(event) => setMinConfidence(Number(event.target.value))} /></label>
+          <label className="filter-field"><span>Freshness</span>
+          <select className="investment-select" value={freshness} onChange={(event) => setFreshness(event.target.value)}><option>All</option><option>ok</option><option>demo</option><option>degraded</option></select>
+          </label>
+          <label className="filter-field"><span>Sort By</span>
           <select className="investment-select" value={sortKey} onChange={(event) => setSortKey(event.target.value)}>
             <option value="probability">Probability</option>
             <option value="expectedReturn">Expected Return</option>
@@ -57,7 +78,9 @@ export default function RankingsPage() {
             <option value="alphaScore">Alpha</option>
             <option value="similarityScore">Similarity</option>
           </select>
+          </label>
           <span className="source-badge">{rows.length} results</span>
+          <button className="investment-button secondary" type="button" onClick={() => { setQuery(''); setSector('All'); setMinProbability(0); setMaxRisk(1); setMinConfidence(0); setFreshness('All'); }}>Reset</button>
         </div>
         <a className="investment-button secondary" href={`/dashboard?ticker=${encodeURIComponent(base)}`}>Dashboard</a>
       </section>
@@ -77,6 +100,13 @@ export default function RankingsPage() {
         <ChartCard title="Sector Heatmap" caption="Probability / expected / risk">
           <SectorHeatmap data={rows} isDemo={payload?.meta?.isDemo} />
         </ChartCard>
+      </section>
+
+      <section className="investment-grid four screen-bottom-grid" style={{ marginTop: 10 }}>
+        <RankingPod title="Top Bullish" rows={groups.bullish} valueKey="probability" />
+        <RankingPod title="Low Risk" rows={groups.lowRisk} valueKey="risk" invert />
+        <RankingPod title="High Confidence" rows={groups.confidence} valueKey="confidence" />
+        <RankingPod title="Under Pressure" rows={groups.pressure} valueKey="expectedExcessReturn" bearish />
       </section>
 
       <section className="chart-card" style={{ marginTop: 10 }}>
@@ -112,6 +142,24 @@ export default function RankingsPage() {
         />
       </section>
     </AppShell>
+  );
+}
+
+function RankingPod({ title, rows, valueKey, invert = false, bearish = false }) {
+  return (
+    <section className="table-card mini-pod">
+      <div className="section-title-row"><div><span className="section-kicker">{title}</span><h2>{rows[0]?.ticker || 'n/a'}</h2></div></div>
+      <CompactTable
+        columns={[{ key: 'ticker', label: 'Ticker' }, { key: valueKey, label: valueKey === 'expectedExcessReturn' ? 'Excess' : 'Score' }, { key: 'expectedReturn', label: 'Exp' }]}
+        rows={rows}
+        renderCell={(row, column) => {
+          if (column.key === 'ticker') return <strong>{row.ticker}</strong>;
+          if (column.key === 'expectedReturn' || column.key === 'expectedExcessReturn') return <span className={row[column.key] >= 0 ? 'value-bull' : 'value-bear'}>{signedPct(row[column.key])}</span>;
+          const tone = bearish ? 'value-bear' : invert ? 'value-warn' : 'value-bull';
+          return <span className={tone}>{pct(row[column.key])}</span>;
+        }}
+      />
+    </section>
   );
 }
 
