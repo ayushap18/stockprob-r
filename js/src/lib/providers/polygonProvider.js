@@ -38,6 +38,7 @@ export async function fetchPolygonQuote(symbol) {
     bid: null,
     ask: null,
     marketState: 'unknown',
+    asOf: new Date().toISOString(),
   }, 'polygon', Date.now() - started);
 }
 

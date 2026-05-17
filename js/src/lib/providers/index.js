@@ -5,8 +5,9 @@ import { fetchYfinanceOhlcv, fetchYfinanceQuote } from './yfinanceProvider.js';
 
 const cache = createCache({ namespace: 'providers' });
 
-export async function getQuote(symbol) {
-  return cache.staleWhileRevalidate(`quote:${symbol}`, TTL.quotes, 5 * 60_000, async () => {
+export async function getQuote(symbol, options = {}) {
+  const key = `quote:${symbol}`;
+  const producer = async () => {
     const polygon = await fetchPolygonQuote(symbol);
     if (polygon.ok) return polygon;
     if (process.env.USE_YFINANCE !== 'false') {
@@ -15,11 +16,18 @@ export async function getQuote(symbol) {
     }
     if (process.env.ENABLE_DEMO_FALLBACK !== 'false') return demoQuote(symbol);
     return polygon;
-  }).then((entry) => ({ ...entry.value, cache: { source: entry.source, stale: entry.stale, warnings: entry.warnings } }));
+  };
+  if (options.force) {
+    const value = await producer();
+    await cache.set(key, value, marketAwareQuoteTtl(value), { warnings: value.warnings || [] });
+    return { ...value, cache: { source: 'provider', stale: false, warnings: [] } };
+  }
+  return cache.staleWhileRevalidate(key, TTL.quotes, 5 * 60_000, producer).then((entry) => ({ ...entry.value, cache: { source: entry.source, stale: entry.stale, warnings: entry.warnings } }));
 }
 
 export async function getOhlcv(symbol, options = {}) {
-  return cache.staleWhileRevalidate(`ohlcv:${symbol}:${options.interval || '1d'}:${options.from || ''}:${options.to || ''}:${options.limit || 520}`, TTL.ohlcvDaily, 24 * 60 * 60_000, async () => {
+  const key = `ohlcv:${symbol}:${options.interval || '1d'}:${options.from || ''}:${options.to || ''}:${options.limit || 520}`;
+  const producer = async () => {
     const polygon = await fetchPolygonOhlcv(symbol, options);
     if (polygon.ok) return polygon;
     if (process.env.USE_YFINANCE !== 'false') {
@@ -28,7 +36,13 @@ export async function getOhlcv(symbol, options = {}) {
     }
     if (process.env.ENABLE_DEMO_FALLBACK !== 'false') return demoOhlcv(symbol, options.limit);
     return polygon;
-  }).then((entry) => ({ ...entry.value, cache: { source: entry.source, stale: entry.stale, warnings: entry.warnings } }));
+  };
+  if (options.force) {
+    const value = await producer();
+    await cache.set(key, value, ohlcvTtl(options.interval), { warnings: value.warnings || [] });
+    return { ...value, cache: { source: 'provider', stale: false, warnings: [] } };
+  }
+  return cache.staleWhileRevalidate(key, ohlcvTtl(options.interval), 24 * 60 * 60_000, producer).then((entry) => ({ ...entry.value, cache: { source: entry.source, stale: entry.stale, warnings: entry.warnings } }));
 }
 
 export function providerReadiness() {
@@ -52,4 +66,12 @@ export function providerReadiness() {
     fallbackCount24h: process.env[env] ? 0 : 1,
     configured: Boolean(process.env[env]),
   }));
+}
+
+function marketAwareQuoteTtl(value) {
+  return value?.data?.marketState === 'open' ? TTL.quotes : TTL.quotesAfterHours;
+}
+
+function ohlcvTtl(interval = '1d') {
+  return String(interval).includes('m') || String(interval).includes('h') ? TTL.ohlcvIntraday : TTL.ohlcvDaily;
 }

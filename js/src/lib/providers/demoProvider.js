@@ -10,10 +10,11 @@ export function demoQuote(symbol = 'MSFT') {
     price: last.close,
     change,
     changePercent: previous.close ? (change / previous.close) * 100 : 0,
-    volume: last.volume,
-    bid: Number((last.close - 0.01).toFixed(2)),
-    ask: Number((last.close + 0.01).toFixed(2)),
-    marketState: 'unknown',
+      volume: last.volume,
+      bid: Number((last.close - 0.01).toFixed(2)),
+      ask: Number((last.close + 0.01).toFixed(2)),
+      marketState: marketState(),
+      asOf: new Date().toISOString(),
   }, 'demo', 0, ['Demo quote generated deterministically.']);
 }
 
@@ -35,4 +36,14 @@ export function providerOk(data, source, latencyMs = 0, warnings = []) {
 
 export function providerFail(error, source, latencyMs = 0, warnings = []) {
   return { ok: false, data: null, source, latencyMs, warnings, error: error?.message || String(error || 'provider failed') };
+}
+
+function marketState() {
+  const now = new Date();
+  const day = now.getUTCDay();
+  const minutes = now.getUTCHours() * 60 + now.getUTCMinutes();
+  if (day === 0 || day === 6) return 'closed';
+  if (minutes >= 13 * 60 + 30 && minutes <= 20 * 60) return 'open';
+  if (minutes < 13 * 60 + 30) return 'pre';
+  return 'post';
 }

@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import { downsamplePaths } from '../../lib/monteCarlo.js';
 import { ChartShell, EmptyChart, PlotlyChart, chartTheme, fmtMoney } from './ChartPrimitives.jsx';
 
-export default function MonteCarloFanChart({ simulation, isDemo, warnings }) {
+export default function MonteCarloFanChart({ simulation, isDemo, warnings, height = 360 }) {
   const traces = useMemo(() => {
     if (!simulation?.percentiles?.length) return [];
     const t = chartTheme();
@@ -28,7 +28,7 @@ export default function MonteCarloFanChart({ simulation, isDemo, warnings }) {
   }, [simulation]);
   return (
     <ChartShell title="Monte Carlo Fan" subtitle="GBM percentile bands with limited sampled paths" isDemo={isDemo} warnings={warnings}>
-      {traces.length ? <PlotlyChart data={traces} layout={{ yaxis: { tickprefix: '$', hoverformat: '$,.2f' }, xaxis: { title: 'Trading days' } }} height={360} /> : <EmptyChart />}
+      {traces.length ? <PlotlyChart data={traces} layout={{ yaxis: { tickprefix: '$', hoverformat: '$,.2f' }, xaxis: { title: 'Trading days' } }} height={height} /> : <EmptyChart />}
       {simulation?.summary && <small className="chart-footnote">Median final: {fmtMoney(simulation.summary.medianFinalPrice)} · P5/P95: {fmtMoney(simulation.summary.p5FinalPrice)} / {fmtMoney(simulation.summary.p95FinalPrice)}</small>}
     </ChartShell>
   );

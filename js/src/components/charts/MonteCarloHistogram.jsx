@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { ChartShell, EmptyChart, PlotlyChart, chartTheme, signedPct } from './ChartPrimitives.jsx';
 
-export default function MonteCarloHistogram({ simulation, isDemo, warnings }) {
+export default function MonteCarloHistogram({ simulation, isDemo, warnings, height = 310 }) {
   const traces = useMemo(() => {
     const returns = simulation?.finalReturns || [];
     if (!returns.length) return [];
@@ -19,7 +19,7 @@ export default function MonteCarloHistogram({ simulation, isDemo, warnings }) {
   }));
   return (
     <ChartShell title="Terminal Return Distribution" subtitle="Mean, median, and VaR markers" isDemo={isDemo} warnings={warnings}>
-      {traces.length ? <PlotlyChart data={traces} layout={{ shapes, xaxis: { tickformat: '.1%' }, yaxis: { title: 'Path count' } }} height={310} /> : <EmptyChart />}
+      {traces.length ? <PlotlyChart data={traces} layout={{ shapes, xaxis: { tickformat: '.1%' }, yaxis: { title: 'Path count' } }} height={height} /> : <EmptyChart />}
       <small className="chart-footnote">Mean {signedPct(summary.meanFinalReturn)} · Median {signedPct(summary.medianFinalReturn)} · VaR 5% {signedPct(summary.valueAtRisk5)}</small>
     </ChartShell>
   );

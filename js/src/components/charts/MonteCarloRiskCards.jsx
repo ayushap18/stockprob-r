@@ -11,6 +11,8 @@ export default function MonteCarloRiskCards({ simulation, probabilityOutperformS
     ['VaR 5%', signedPct(summary.valueAtRisk5)],
     ['CVaR 5%', signedPct(summary.expectedShortfall5)],
     ['Max DD est.', signedPct(summary.maxDrawdownEstimate)],
+    ['Paths', Number(summary.simulations || simulation?.paths_run || simulation?.paths?.length || 0).toLocaleString()],
+    ['Annual σ', fmtPct(summary.volatilityAnnual)],
   ];
   return (
     <ChartShell title="Monte Carlo Risk" subtitle="Counted simulation summary" isDemo={isDemo} warnings={warnings}>

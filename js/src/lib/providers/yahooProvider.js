@@ -46,6 +46,7 @@ export async function fetchYahooQuote(symbol) {
       bid: Number((last.close - 0.01).toFixed(2)),
       ask: Number((last.close + 0.01).toFixed(2)),
       marketState: marketState(),
+      asOf: new Date().toISOString(),
     }, 'yfinance', Date.now() - started, [YAHOO_WARNING]);
   } catch (error) {
     return providerFail(error, 'yfinance', Date.now() - started, [YAHOO_WARNING]);

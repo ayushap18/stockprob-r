@@ -1,8 +1,8 @@
 const subscriptions = new Map();
 
-export function createLiveSubscription({ kind, symbols = [], pollMs = 15000, horizonDays = 5, onMessage, onStatus }) {
+export function createLiveSubscription({ kind, symbols = [], pollMs = 15000, horizonDays = 5, benchmark = 'SPY', onMessage, onStatus }) {
   const normalized = [...new Set(symbols.map((symbol) => String(symbol).toUpperCase()).filter(Boolean))].sort();
-  const key = `${kind}:${normalized.join(',')}:${horizonDays}`;
+  const key = `${kind}:${normalized.join(',')}:${horizonDays}:${benchmark}`;
   if (subscriptions.has(key)) {
     const existing = subscriptions.get(key);
     existing.refs += 1;
@@ -21,7 +21,7 @@ export function createLiveSubscription({ kind, symbols = [], pollMs = 15000, hor
     controller: null,
   };
   subscriptions.set(key, state);
-  start(state, { kind, symbols: normalized, pollMs, horizonDays });
+  start(state, { kind, symbols: normalized, pollMs, horizonDays, benchmark });
   return () => release(key, onMessage, onStatus);
 }
 
@@ -60,7 +60,7 @@ function trySse(state, config) {
     state.eventSource = es;
     notifyStatus(state, 'fallback');
     const handler = (event) => emit(state, safeJson(event.data));
-    ['quote.update', 'probability.update', 'system.health', 'provider.health', 'error', 'heartbeat.ping'].forEach((type) => es.addEventListener(type, handler));
+    ['dashboard.patch', 'quote.update', 'probability.update', 'chart.update', 'system.health', 'provider.health', 'memory.health', 'job.update', 'error', 'heartbeat.ping'].forEach((type) => es.addEventListener(type, handler));
     es.onerror = () => {
       es.close();
       if (!state.stopped) poll(state, config);
@@ -110,22 +110,26 @@ function release(key, onMessage, onStatus) {
   subscriptions.delete(key);
 }
 
-function streamUrl({ kind, symbols, horizonDays }) {
+function streamUrl({ kind, symbols, horizonDays, benchmark }) {
+  if (kind === 'dashboard') return `/api/stream/dashboard?symbols=${encodeURIComponent(symbols.join(','))}&horizonDays=${horizonDays}&benchmark=${encodeURIComponent(benchmark || 'SPY')}`;
   if (kind === 'quotes') return `/api/stream/quotes?symbols=${encodeURIComponent(symbols.join(','))}`;
   if (kind === 'probabilities') return `/api/stream/probabilities?symbols=${encodeURIComponent(symbols.join(','))}&horizonDays=${horizonDays}`;
   if (kind === 'provider-health') return '/api/stream/provider-health';
+  if (kind === 'memory') return '/api/stream/memory';
   return '/api/stream/system';
 }
 
-function pollUrl({ kind, symbols, horizonDays }) {
+function pollUrl({ kind, symbols, horizonDays, benchmark }) {
+  if (kind === 'dashboard') return `/api/dashboard/${encodeURIComponent(symbols[0] || 'MSFT')}/snapshot?horizonDays=${horizonDays}&benchmark=${encodeURIComponent(benchmark || 'SPY')}`;
   if (kind === 'quotes') return `/api/market/quote/${encodeURIComponent(symbols[0] || 'MSFT')}`;
   if (kind === 'probabilities') return `/api/probabilities/${encodeURIComponent(symbols[0] || 'MSFT')}?horizonDays=${horizonDays}`;
   if (kind === 'provider-health') return '/api/system/providers';
+  if (kind === 'memory') return '/api/system/memory';
   return '/api/system/health';
 }
 
 function restToRealtime(kind, payload, symbols) {
-  const type = kind === 'quotes' ? 'quote.update' : kind === 'probabilities' ? 'probability.update' : kind === 'provider-health' ? 'provider.health' : 'system.health';
+  const type = kind === 'dashboard' ? 'dashboard.patch' : kind === 'quotes' ? 'quote.update' : kind === 'probabilities' ? 'probability.update' : kind === 'provider-health' ? 'provider.health' : kind === 'memory' ? 'memory.health' : 'system.health';
   return {
     type,
     symbol: symbols?.[0] || null,

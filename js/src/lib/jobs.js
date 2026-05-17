@@ -6,8 +6,10 @@ const JOB_TYPES = new Set([
   'macro.refresh',
   'news.refresh',
   'filings.refresh',
+  'options.refresh',
   'features.generate',
   'probabilities.refresh',
+  'montecarlo.run',
   'backtest.run',
   'provider.healthcheck',
 ]);
@@ -41,4 +43,27 @@ export async function getQueueStatus() {
 
 export async function getJobStatus(id) {
   return jobs.find((job) => job.id === id) || null;
+}
+
+export async function markJobStarted(id) {
+  return updateJob(id, { status: 'running', started_at: new Date().toISOString() });
+}
+
+export async function markJobCompleted(id, result = {}) {
+  return updateJob(id, { status: 'completed', completed_at: new Date().toISOString(), result });
+}
+
+export async function markJobFailed(id, error) {
+  return updateJob(id, { status: 'failed', failed_at: new Date().toISOString(), error: safeError(error) });
+}
+
+function updateJob(id, patch) {
+  const job = jobs.find((entry) => entry.id === id);
+  if (!job) return null;
+  Object.assign(job, patch, { updated_at: new Date().toISOString() });
+  return job;
+}
+
+function safeError(error) {
+  return { code: error?.code || 'JOB_FAILED', message: error?.message || 'Job failed safely.' };
 }

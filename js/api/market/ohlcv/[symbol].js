@@ -10,7 +10,8 @@ export default async function handler(request, response) {
     const from = normalizeDate(request.query?.from, null);
     const to = normalizeDate(request.query?.to, new Date().toISOString().slice(0, 10));
     const limit = normalizeLimit(request.query?.limit, 520);
-    const result = await getOhlcv(symbol, { interval, from, to, limit });
+    const force = request.query?.force === '1' || request.query?.refresh === '1';
+    const result = await getOhlcv(symbol, { interval, from, to, limit, force });
     return response.status(200).json(ok(result.data, {
       source: result.source,
       isDemo: result.source === 'demo',

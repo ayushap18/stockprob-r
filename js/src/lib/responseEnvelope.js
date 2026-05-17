@@ -32,13 +32,14 @@ export function sendJson(response, status, payload) {
   response.status(status).json(payload);
 }
 
-export function realtimeEnvelope(type, data, { symbol = null, source = 'cache', isDemo = false, warnings = [] } = {}) {
+export function realtimeEnvelope(type, data, { symbol = null, source = 'cache', isDemo = false, stale = false, warnings = [] } = {}) {
   return {
     type,
     symbol,
     timestamp: new Date().toISOString(),
     source,
     isDemo,
+    stale: Boolean(stale),
     data,
     warnings,
   };

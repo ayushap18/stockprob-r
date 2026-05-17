@@ -10,7 +10,8 @@ export function normalizePriceHistory(raw) {
       close: number(row.close ?? row.c),
       volume: number(row.volume ?? row.v),
     }))
-    .filter((row) => row.date && finite(row.close) && finite(row.open) && finite(row.high) && finite(row.low));
+    .filter((row) => row.date && finite(row.close) && finite(row.open) && finite(row.high) && finite(row.low))
+    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 }
 
 export function normalizePrediction(raw) {
@@ -49,7 +50,7 @@ export function normalizeMonteCarlo(raw) {
       p50: safe(row.p50),
       p75: safe(row.p75),
       p95: safe(row.p95),
-    })),
+    })).filter((row) => finite(row.day)),
     finalValues: (raw?.finalValues || []).filter(finite).map(Number),
     finalReturns: (raw?.finalReturns || []).filter(finite).map(Number),
     summary: raw?.summary || {},
@@ -83,7 +84,7 @@ export function normalizeRankings(raw) {
     confidence: clamp(row.confidence),
     signal: text(row.signal || row.final_signal, 'neutral'),
     providerStatus: text(row.provider_status?.market || row.providerStatus, 'unknown'),
-  }));
+  })).filter((row) => row.ticker && row.ticker !== 'N/A');
 }
 
 export function normalizeBacktest(raw) {
@@ -94,7 +95,7 @@ export function normalizeBacktest(raw) {
     strategy: safe(row.equity ?? row.strategy ?? row.model ?? row.value ?? 1),
     spy: safe(benchmark[index]?.equity ?? row.spy ?? row.benchmark ?? 1),
     cumulativeReturn: safe((row.equity ?? row.strategy ?? 1) - 1),
-  }));
+  })).filter((row) => row.date && finite(row.strategy)).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
   return {
     equity: normalizedEquity,
     drawdown: normalizedEquity.map((row, index) => {
@@ -133,13 +134,18 @@ export function normalizeMacro(raw) {
     unemployment: safe(row.unemployment ?? row.unemployment_rate),
     macroScore: clamp(row.macroScore ?? row.macro_sector_score),
     regime: text(row.regime || row.market_regime, 'sideways'),
-  }));
+  })).filter((row) => row.date).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 }
 
 function dateString(value) {
   if (!value && value !== 0) return '';
-  if (typeof value === 'number') return String(value);
+  if (typeof value === 'number') {
+    const date = new Date(value > 10_000_000_000 ? value : value * 1000);
+    return Number.isFinite(date.getTime()) ? date.toISOString().slice(0, 10) : String(value);
+  }
   const textValue = String(value);
+  const date = new Date(textValue);
+  if (Number.isFinite(date.getTime())) return date.toISOString().slice(0, 10);
   return textValue.length >= 10 ? textValue.slice(0, 10) : textValue;
 }
 
