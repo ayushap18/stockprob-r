@@ -1,8 +1,8 @@
 import React from 'react';
 
-export default function ChartCard({ title, caption, badge, controls, onExpand, children }) {
+export default function ChartCard({ title, caption, badge, controls, onExpand, className = '', children }) {
   return (
-    <section className={`chart-card ${onExpand ? 'is-expandable' : ''}`} onDoubleClick={onExpand}>
+    <section className={`chart-card ${className} ${onExpand ? 'is-expandable' : ''}`} onDoubleClick={onExpand}>
       <div className="chart-title-row">
         <div>
           <span className="section-kicker">{caption}</span>

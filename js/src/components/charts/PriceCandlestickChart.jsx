@@ -2,11 +2,13 @@ import React, { useEffect, useMemo, useRef } from 'react';
 import { CandlestickSeries, createChart, HistogramSeries, LineSeries } from 'lightweight-charts';
 import { ChartShell, EmptyChart, chartTheme, useMeasuredFrame } from './ChartPrimitives.jsx';
 import { betaToBenchmark, indicatorRows, relativeStrength } from '../../lib/math/technicals.js';
+import { filterByRange } from '../../lib/chartRanges.js';
 
-export default function PriceCandlestickChart({ data = [], benchmarkData = [], indicators = {}, isDemo, warnings }) {
+export default function PriceCandlestickChart({ data = [], benchmarkData = [], range = '1Y', indicators = {}, isDemo, warnings }) {
   const [frameRef, size] = useMeasuredFrame();
   const chartRef = useRef(null);
-  const candleData = useMemo(() => indicatorRows(data.filter((row) => row.time && Number.isFinite(row.close))), [data]);
+  const fullIndicatorData = useMemo(() => indicatorRows(data.filter((row) => row.time && Number.isFinite(row.close))), [data]);
+  const candleData = useMemo(() => filterByRange(fullIndicatorData, range, 'date'), [fullIndicatorData, range]);
   const indicatorStats = useMemo(() => {
     const latest = candleData.at(-1) || {};
     return {

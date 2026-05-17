@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import FreshnessBadge from '../ui/FreshnessBadge.jsx';
 import SourceBadge from '../ui/SourceBadge.jsx';
 import StatusBadge from '../ui/StatusBadge.jsx';
@@ -10,12 +10,19 @@ const demoResults = [
   { symbol: 'JPM', name: 'JPMorgan Chase & Co.', sector: 'Financials', theme: 'Large banks' },
 ];
 
-export default function DashboardCommandCenter({ input, setInput, onSubmit, snapshot, live, controls, updateControl }) {
+export default function DashboardCommandCenter({ input, setInput, onSubmit, onSelectSymbol, snapshot, live, controls, updateControl }) {
   const [open, setOpen] = useState(false);
   const [results, setResults] = useState([]);
   const abortRef = useRef(null);
   const quote = snapshot?.quote || {};
   const company = snapshot?.company || {};
+  const selectedSymbol = String(snapshot?.symbol || '').toUpperCase();
+  const mergedResults = useMemo(() => {
+    const mapped = results.filter((row) => row?.symbol);
+    if (!selectedSymbol) return mapped;
+    const hasSelected = mapped.some((row) => String(row.symbol).toUpperCase() === selectedSymbol);
+    return hasSelected ? mapped : [{ symbol: selectedSymbol, name: company.name || company.company || 'Selected security', sector: company.exchange || 'US', theme: 'Current dashboard' }, ...mapped];
+  }, [company.company, company.exchange, company.name, results, selectedSymbol]);
 
   useEffect(() => {
     const query = input.trim();
@@ -45,13 +52,25 @@ export default function DashboardCommandCenter({ input, setInput, onSubmit, snap
       <div className="command-search-wrap">
         <span className="section-kicker">Command Center</span>
         <div className="investment-search">
-          <input className="investment-input" value={input} onFocus={() => setOpen(true)} onChange={(event) => { setInput(event.target.value.toUpperCase()); setOpen(true); }} aria-label="Ticker or company search" />
-          <button className="search-clear-button" type="button" aria-label="Clear search" onClick={() => setInput('')}>×</button>
+          <input
+            className="investment-input"
+            value={input}
+            placeholder="Ticker or company"
+            onFocus={() => setOpen(true)}
+            onKeyDown={(event) => {
+              if (event.key === 'Escape') setOpen(false);
+              if (event.key === 'Enter') setOpen(false);
+            }}
+            onChange={(event) => { setInput(event.target.value.toUpperCase()); setOpen(true); }}
+            aria-label="Ticker or company search"
+          />
+          <button className="search-clear-button" type="button" aria-label="Clear search" onClick={() => { setInput(''); setOpen(false); }}>×</button>
+          <button className="search-run-button" type="submit">Run</button>
         </div>
-        {open && results.length > 0 && (
+        {open && mergedResults.length > 0 && (
           <div className="ticker-results" role="listbox">
-            {results.map((row) => (
-              <button key={row.symbol} type="button" onClick={() => { setInput(row.symbol); setOpen(false); }}>
+            {mergedResults.map((row) => (
+              <button key={`${row.symbol}-${row.name}`} type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => { setInput(row.symbol); setOpen(false); onSelectSymbol?.(row.symbol); }}>
                 <strong>{row.symbol}</strong><span>{row.name}</span><small>{row.sector} · {row.theme}</small>
               </button>
             ))}

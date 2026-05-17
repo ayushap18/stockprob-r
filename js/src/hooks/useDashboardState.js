@@ -38,13 +38,15 @@ export function useScenarioSimulation(snapshot, controls) {
       : Math.max(0.08, Math.min(1.4, Number(snapshot.technicals?.volatility_20d || snapshot.probabilities?.riskScore || 0.24)));
     const expectedReturnAnnual = scenarioAdjustedExpectedReturn(expectedAnnual, controls.scenario);
     const volatilityAnnual = scenarioAdjustedVolatility(baseVol, controls.scenario);
+    const detailed = controls.chartDensity === 'detailed';
+    const simulations = detailed ? 10000 : controls.chartDensity === 'compact' ? 1200 : 5000;
     const simulation = runMonteCarloSimulation({
       startPrice: snapshot.quote.price,
       expectedReturnAnnual,
       volatilityAnnual,
       days: controls.horizonDays,
-      simulations: controls.chartDensity === 'detailed' ? 3000 : 1200,
-      seed: `${snapshot.symbol}-${controls.horizonDays}-${controls.scenario}-${controls.benchmark}-${controls.expectedReturnMode}-${controls.volatilityMode}`,
+      simulations,
+      seed: `${snapshot.symbol}-${controls.horizonDays}-${controls.scenario}-${controls.benchmark}-${controls.expectedReturnMode}-${controls.volatilityMode}-${controls.customExpectedReturn}-${controls.customVolatility}`,
     });
     const finalReturns = simulation.finalReturns || [];
     const gainThreshold = Math.max(0, Number(controls.gainThreshold) || 0);
@@ -57,6 +59,11 @@ export function useScenarioSimulation(snapshot, controls) {
         probabilityGainGtThreshold: finalReturns.filter((value) => value > gainThreshold).length / Math.max(1, finalReturns.length),
         probabilityLossGtThreshold: finalReturns.filter((value) => value < lossThreshold).length / Math.max(1, finalReturns.length),
         expectedMove: volatilityAnnual * Math.sqrt((Number(controls.horizonDays) || 5) / 252),
+        simulations,
+        expectedReturnAnnual,
+        volatilityAnnual,
+        driftMode: controls.expectedReturnMode,
+        volatilityMode: controls.volatilityMode,
       },
     };
   }, [snapshot, controls]);

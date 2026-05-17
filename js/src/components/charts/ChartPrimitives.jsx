@@ -69,17 +69,17 @@ export function useMeasuredFrame() {
 
 export function chartTheme() {
   return {
-    bg: '#071216',
-    panel: '#0b1c24',
-    border: '#1e3a46',
-    text: '#d6e3ea',
-    muted: '#8aa0ad',
+    bg: '#04070a',
+    panel: '#071017',
+    border: '#1f2b37',
+    text: '#f4f7fb',
+    muted: '#9aa4b2',
     cyan: '#22d3ee',
     green: '#22c55e',
     red: '#ef4444',
     amber: '#f59e0b',
     purple: '#8b5cf6',
-    grid: 'rgba(148, 163, 184, 0.14)',
+    grid: 'rgba(154, 164, 178, 0.11)',
   };
 }
 

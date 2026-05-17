@@ -159,10 +159,10 @@
 
 .investment-command {
   display: grid;
-  grid-template-columns: minmax(280px, 390px) 1fr auto;
-  gap: 12px;
+  grid-template-columns: minmax(360px, 500px) 1fr auto;
+  gap: 14px;
   align-items: center;
-  padding: 6px 10px;
+  padding: 9px 12px;
   margin-bottom: 5px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -171,7 +171,7 @@
 }
 
 .command-center {
-  grid-template-columns: minmax(300px, 420px) 1fr auto;
+  grid-template-columns: minmax(380px, 520px) 1fr auto;
 }
 
 .command-search-wrap {
@@ -186,21 +186,21 @@
   z-index: 60;
   display: grid;
   gap: 4px;
-  max-height: 260px;
+  max-height: 310px;
   overflow-y: auto;
-  padding: 6px;
-  border: 1px solid var(--border);
+  padding: 7px;
+  border: 1px solid rgba(255, 45, 85, 0.28);
   border-radius: 8px;
-  background: #0b0e14;
-  box-shadow: var(--terminal-shadow);
+  background: rgba(8, 10, 15, 0.98);
+  box-shadow: 0 22px 70px rgba(0, 0, 0, 0.58);
 }
 
 .ticker-results button {
   display: grid;
-  grid-template-columns: 58px 1fr;
+  grid-template-columns: 62px 1fr;
   gap: 4px 8px;
   width: 100%;
-  padding: 8px;
+  padding: 9px;
   border-radius: 7px;
   color: var(--text-secondary);
   background: transparent;
@@ -209,7 +209,7 @@
 }
 
 .ticker-results button:hover {
-  background: var(--panel-elevated);
+  background: rgba(255, 45, 85, 0.11);
 }
 
 .ticker-results strong {
@@ -223,18 +223,19 @@
 
 .investment-search {
   display: grid;
-  grid-template-columns: 1fr 28px;
+  grid-template-columns: 1fr 30px 58px;
   gap: 0;
   overflow: hidden;
   border: 1px solid var(--border);
   border-radius: 8px;
-  background: #0b0e14;
+  background: #07090d;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.015);
 }
 
 .investment-input,
 .investment-select {
   width: 100%;
-  min-height: 30px;
+  min-height: 36px;
   padding: 0 11px;
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -252,13 +253,28 @@
 .search-clear-button {
   display: grid;
   place-items: center;
-  min-height: 30px;
+  min-height: 36px;
   border-left: 1px solid var(--border);
   color: var(--text-secondary);
   background: transparent;
   cursor: pointer;
   font-size: 17px;
   line-height: 1;
+}
+
+.search-run-button {
+  min-height: 36px;
+  border-left: 1px solid rgba(255, 45, 85, 0.32);
+  color: #fff;
+  background: linear-gradient(180deg, rgba(255, 45, 85, 0.92), rgba(199, 19, 56, 0.88));
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.search-run-button:hover {
+  filter: brightness(1.08);
 }
 
 .search-clear-button:hover {
@@ -312,7 +328,7 @@
 }
 
 .investment-grid.two {
-  grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1.28fr) minmax(0, 0.92fr);
 }
 
 .investment-grid.three {
@@ -344,8 +360,8 @@
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.018), transparent),
-    rgba(16, 19, 26, 0.91);
+    linear-gradient(180deg, rgba(255, 255, 255, 0.012), transparent),
+    rgba(10, 12, 18, 0.96);
   box-shadow: 0 10px 34px rgba(0, 0, 0, 0.24);
   overflow: hidden;
 }
@@ -905,18 +921,28 @@
 }
 
 .chart-card .lw-chart-frame {
-  height: 96px !important;
-  min-height: 92px !important;
+  height: 112px !important;
+  min-height: 106px !important;
 }
 
 .chart-card .analytics-chart-frame {
-  height: 96px !important;
-  min-height: 92px !important;
+  height: 112px !important;
+  min-height: 106px !important;
+}
+
+.primary-chart-card .lw-chart-frame {
+  height: 230px !important;
+  min-height: 220px !important;
+}
+
+.primary-chart-card .analytics-chart-frame {
+  height: 230px !important;
+  min-height: 220px !important;
 }
 
 .terminal-six .analytics-chart-frame {
-  height: 96px !important;
-  min-height: 92px !important;
+  height: 106px !important;
+  min-height: 100px !important;
 }
 
 .terminal-six .chart-footnote {

@@ -73,8 +73,14 @@ export default function DashboardPage() {
   function submit(event) {
     event.preventDefault();
     const next = input.trim().toUpperCase();
+    selectSymbol(next);
+  }
+
+  function selectSymbol(nextSymbol) {
+    const next = String(nextSymbol || '').trim().toUpperCase();
     if (/^[A-Z0-9.-]{1,12}$/.test(next)) {
       setSymbol(next);
+      setInput(next);
       patchControls({ selectedSymbol: next });
     }
   }
@@ -114,21 +120,21 @@ export default function DashboardPage() {
 
   return (
     <AppShell active="Dashboard" rightSlot={<StatusBadge status={live.status}>{live.status || 'live'}</StatusBadge>}>
-      <DashboardCommandCenter input={input} setInput={setInput} onSubmit={submit} snapshot={snapshot} live={live} controls={controls} updateControl={updateControl} />
+      <DashboardCommandCenter input={input} setInput={setInput} onSubmit={submit} onSelectSymbol={selectSymbol} snapshot={snapshot} live={live} controls={controls} updateControl={updateControl} />
       {warnings.length > 0 && <section className="warning-strip">{warnings.map((warning) => <span key={warning}>{warning}</span>)}</section>}
       <AnalysisControlPanel controls={controls} updateControl={updateControl} />
       <DashboardMetricStrip snapshot={snapshot} controls={controls} simulation={scenarioSimulation} />
 
       <section className="investment-grid two" style={{ marginTop: 10 }}>
-        <ChartCard title="Price Action" caption="Candles + volume" controls={priceControls} onExpand={() => zoom.openChart({
+        <ChartCard className="primary-chart-card" title="Price Action" caption="Candles + volume" controls={priceControls} onExpand={() => zoom.openChart({
           title: 'Price Action',
           caption: `${snapshot.symbol} · ${chartRange}`,
           controls: priceControls,
-          content: <PriceCandlestickChart data={rangeData.candles} benchmarkData={rangeData.benchmark} indicators={priceIndicators} isDemo={live.isDemo} />,
+          content: <PriceCandlestickChart data={snapshot.candles} benchmarkData={rangeData.benchmark} range={chartRange} indicators={priceIndicators} isDemo={live.isDemo} />,
         })}>
-          <PriceCandlestickChart data={rangeData.candles} benchmarkData={rangeData.benchmark} indicators={priceIndicators} isDemo={live.isDemo} />
+          <PriceCandlestickChart data={snapshot.candles} benchmarkData={rangeData.benchmark} range={chartRange} indicators={priceIndicators} isDemo={live.isDemo} />
         </ChartCard>
-        <ChartCard title={`${snapshot.symbol} vs ${controls.benchmark}`} caption="Benchmark comparison" controls={rangeControls} onExpand={() => zoom.openChart({
+        <ChartCard className="primary-chart-card" title={`${snapshot.symbol} vs ${controls.benchmark}`} caption="Benchmark comparison" controls={rangeControls} onExpand={() => zoom.openChart({
           title: `${snapshot.symbol} vs ${controls.benchmark}`,
           caption: `Benchmark comparison · ${chartRange}`,
           controls: rangeControls,
