@@ -1612,6 +1612,10 @@ class ErrorBoundary extends Component {
     return { hasError: true };
   }
 
+  componentDidCatch(error) {
+    console.error('StockProb dashboard render failure', error);
+  }
+
   render() {
     if (this.state.hasError) {
       return (

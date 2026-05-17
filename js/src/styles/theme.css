@@ -434,6 +434,111 @@
   margin-bottom: 6px;
 }
 
+.chart-card-actions {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.chart-expand-button {
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-secondary);
+  background: rgba(5, 6, 8, 0.42);
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.chart-expand-button:hover {
+  border-color: rgba(255, 45, 85, 0.5);
+  color: var(--text-primary);
+  background: rgba(255, 45, 85, 0.1);
+}
+
+.analytics-zoom-wrap {
+  position: relative;
+  min-width: 0;
+}
+
+.analytics-expand-button {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 4;
+}
+
+.chart-card-controls {
+  display: grid;
+  gap: 5px;
+  margin: -1px 0 6px;
+}
+
+.range-selector,
+.indicator-controls {
+  display: flex;
+  gap: 3px;
+  align-items: center;
+  overflow-x: auto;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: rgba(5, 6, 8, 0.45);
+}
+
+.indicator-controls {
+  padding: 3px;
+}
+
+.range-selector button,
+.indicator-controls button {
+  min-height: 22px;
+  padding: 0 7px;
+  border-radius: 5px;
+  color: var(--text-secondary);
+  background: transparent;
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.range-selector button.active,
+.indicator-controls button.active {
+  color: #fff;
+  background: linear-gradient(180deg, rgba(255, 45, 85, 0.86), rgba(199, 19, 56, 0.8));
+}
+
+.indicator-stat-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  padding-top: 5px;
+}
+
+.indicator-stat-strip span {
+  display: inline-flex;
+  gap: 5px;
+  align-items: center;
+  min-height: 20px;
+  padding: 0 7px;
+  border: 1px solid var(--border-soft);
+  border-radius: 999px;
+  color: var(--text-secondary);
+  background: rgba(5, 6, 8, 0.38);
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.indicator-stat-strip b {
+  color: var(--text-muted);
+  font-size: 9px;
+  text-transform: uppercase;
+}
+
 .chart-title-row h2,
 .section-title-row h2 {
   margin: 2px 0 0;
@@ -877,6 +982,94 @@
   animation: investment-shimmer 1.4s infinite;
 }
 
+.chart-modal-open {
+  overflow: hidden;
+}
+
+.chart-zoom-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.72);
+  backdrop-filter: blur(12px);
+}
+
+.chart-zoom-modal {
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  width: min(1280px, 96vw);
+  max-height: 92vh;
+  border: 1px solid rgba(154, 164, 178, 0.22);
+  border-radius: 12px;
+  background:
+    radial-gradient(circle at 20% 0%, rgba(255, 45, 85, 0.08), transparent 34%),
+    var(--panel);
+  box-shadow: 0 30px 90px rgba(0, 0, 0, 0.62);
+  overflow: hidden;
+}
+
+.chart-zoom-modal > header {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: center;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.chart-zoom-modal h2 {
+  margin: 2px 0 0;
+  font-size: 17px;
+}
+
+.chart-zoom-close {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text-primary);
+  background: rgba(5, 6, 8, 0.58);
+  cursor: pointer;
+  font-size: 22px;
+}
+
+.chart-zoom-controls {
+  display: grid;
+  gap: 6px;
+  padding: 10px 14px 0;
+}
+
+.chart-zoom-body {
+  min-height: 0;
+  padding: 12px 14px 16px;
+  overflow: auto;
+}
+
+.chart-zoom-body .analytics-card,
+.chart-zoom-body .chart-card {
+  height: 100%;
+}
+
+.chart-zoom-body .lw-chart-frame {
+  height: min(62vh, 600px) !important;
+  min-height: 420px !important;
+}
+
+.chart-zoom-body .analytics-chart-frame {
+  height: min(58vh, 560px) !important;
+  min-height: 380px !important;
+}
+
+.chart-zoom-body .js-plotly-plot,
+.chart-zoom-body .plot-container {
+  min-height: 420px;
+}
+
 @keyframes investment-shimmer {
   from { background-position: -220px 0, 0 0; }
   to { background-position: calc(100% + 220px) 0, 0 0; }
@@ -972,5 +1165,16 @@
 
   .investment-search {
     grid-template-columns: 1fr;
+  }
+
+  .chart-zoom-backdrop {
+    padding: 0;
+  }
+
+  .chart-zoom-modal {
+    width: 100vw;
+    height: 100vh;
+    max-height: 100vh;
+    border-radius: 0;
   }
 }

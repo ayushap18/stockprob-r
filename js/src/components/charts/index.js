@@ -27,3 +27,6 @@ export { default as ScenarioComparisonChart } from './ScenarioComparisonChart.js
 export { default as ThresholdProbabilityChart } from './ThresholdProbabilityChart.jsx';
 export { default as SentimentBreakdownChart } from './SentimentBreakdownChart.jsx';
 export { default as MacroBreakdownChart } from './MacroBreakdownChart.jsx';
+export { default as ChartZoomModal } from './ChartZoomModal.jsx';
+export { default as IndicatorControls } from './IndicatorControls.jsx';
+export { default as RangeSelector } from './RangeSelector.jsx';

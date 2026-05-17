@@ -4,8 +4,8 @@ import { runMonteCarloSimulation } from './monteCarlo.js';
 export function generateDemoPriceData(ticker = 'MSFT') {
   const rng = seeded(ticker);
   let close = 120 + rng() * 260;
-  const start = subDays(new Date('2026-05-16T00:00:00Z'), 260);
-  return Array.from({ length: 220 }, (_, index) => {
+  const start = subDays(new Date('2026-05-16T00:00:00Z'), 2100);
+  return Array.from({ length: 1500 }, (_, index) => {
     const date = addDays(start, index);
     const drift = 0.0005 + (rng() - 0.5) * 0.004;
     const wave = Math.sin(index / 13) * 0.008;
@@ -40,9 +40,9 @@ export function generateDemoSpyComparison(ticker = 'MSFT') {
 
 export function generateDemoProbabilityTrend(ticker = 'MSFT') {
   const rng = seeded(`${ticker}-prob`);
-  const start = subDays(new Date('2026-05-16T00:00:00Z'), 90);
+  const start = subDays(new Date('2026-05-16T00:00:00Z'), 1500);
   let probability = 0.52 + (rng() - 0.5) * 0.12;
-  return Array.from({ length: 90 }, (_, index) => {
+  return Array.from({ length: 1500 }, (_, index) => {
     probability = clamp(probability + (rng() - 0.5) * 0.035 + Math.sin(index / 9) * 0.006, 0.22, 0.82);
     const expectedReturn = (probability - 0.5) * 0.08 + (rng() - 0.5) * 0.01;
     return {
@@ -109,10 +109,10 @@ export function generateDemoRankings() {
 }
 
 export function generateDemoBacktest() {
-  const start = subDays(new Date('2026-05-16T00:00:00Z'), 180);
+  const start = subDays(new Date('2026-05-16T00:00:00Z'), 1260);
   let strategy = 1;
   let spy = 1;
-  const equity = Array.from({ length: 120 }, (_, index) => {
+  const equity = Array.from({ length: 900 }, (_, index) => {
     strategy *= 1 + 0.0008 + Math.sin(index / 12) * 0.002 + (index % 17 === 0 ? -0.006 : 0.001);
     spy *= 1 + 0.00045 + Math.sin(index / 15) * 0.0015;
     return { date: isoDate(addDays(start, index)), strategy, spy, cumulativeReturn: strategy - 1 };

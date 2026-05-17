@@ -5,6 +5,7 @@ import {
   BacktestDrawdownChart,
   BacktestEquityCurve,
   CalibrationCurve,
+  ChartZoomModal,
   ConfidenceBucketChart,
   ExpectedReturnChart,
   FeatureImportanceChart,
@@ -17,6 +18,7 @@ import {
   PriceCandlestickChart,
   ProbabilityTrendChart,
   ProviderHealthChart,
+  RangeSelector,
   RankingScatterChart,
   RiskConfidenceChart,
   SectorHeatmap,
@@ -30,6 +32,8 @@ import LiveQuoteTicker from '../components/live/LiveQuoteTicker.jsx';
 import LiveStatusBadge from '../components/live/LiveStatusBadge.jsx';
 import LiveSystemPanel from '../components/live/LiveSystemPanel.jsx';
 import { useLiveProbabilities } from '../hooks/useLiveProbabilities.js';
+import { useChartZoom } from '../hooks/useChartZoom.js';
+import { filterByRange } from '../lib/chartRanges.js';
 
 export default function Analytics() {
   const initialTicker = new URLSearchParams(window.location.search).get('ticker') || 'MSFT';
@@ -38,6 +42,8 @@ export default function Analytics() {
   const [bundle, setBundle] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [chartRange, setChartRange] = useState('1Y');
+  const zoom = useChartZoom();
 
   useEffect(() => {
     let cancelled = false;
@@ -62,6 +68,12 @@ export default function Analytics() {
   const liveProbabilities = useLiveProbabilities([ticker], 5);
   const liveProbability = liveProbabilities.data?.[ticker]?.probabilityOutperformSpy ?? prediction?.probability;
   const trend = useMemo(() => generateDemoProbabilityTrend(ticker), [ticker]);
+  const rangedTrend = useMemo(() => filterByRange(trend, chartRange, 'date'), [chartRange, trend]);
+  const rangedPrice = useMemo(() => filterByRange(bundle?.price?.data || [], chartRange, 'date'), [bundle?.price?.data, chartRange]);
+  const rangedComparison = useMemo(() => filterByRange(bundle?.comparison?.data || [], chartRange, 'date'), [bundle?.comparison?.data, chartRange]);
+  const rangedEquity = useMemo(() => filterByRange(bundle?.backtest?.data?.equity || [], chartRange, 'date'), [bundle?.backtest?.data?.equity, chartRange]);
+  const rangedDrawdown = useMemo(() => filterByRange(bundle?.backtest?.data?.drawdown || [], chartRange, 'date'), [bundle?.backtest?.data?.drawdown, chartRange]);
+  const rangeControls = <RangeSelector value={chartRange} onChange={setChartRange} />;
   const demoSources = bundle ? Object.values(bundle).filter((section) => section?.isDemo).map((section) => section.source) : [];
 
   function submit(event) {
@@ -113,63 +125,63 @@ export default function Analytics() {
           <>
             <AnalyticsSection title="Price Analysis">
               <div className="analytics-grid two-one">
-                <PriceCandlestickChart data={bundle.price.data} isDemo={bundle.price.isDemo} warnings={bundle.price.warnings} />
-                <SpyComparisonChart data={bundle.comparison.data} isDemo={bundle.comparison.isDemo} warnings={bundle.comparison.warnings} />
+                <ZoomableAnalyticsChart title="Candlestick Price" controls={rangeControls} zoom={zoom}><PriceCandlestickChart data={rangedPrice} isDemo={bundle.price.isDemo} warnings={bundle.price.warnings} /></ZoomableAnalyticsChart>
+                <ZoomableAnalyticsChart title="Benchmark Comparison" controls={rangeControls} zoom={zoom}><SpyComparisonChart data={rangedComparison} isDemo={bundle.comparison.isDemo} warnings={bundle.comparison.warnings} /></ZoomableAnalyticsChart>
               </div>
             </AnalyticsSection>
 
             <AnalyticsSection title="Prediction Analysis">
               <div className="analytics-grid thirds">
-                <ProbabilityTrendChart data={trend} isDemo />
-                <ExpectedReturnChart data={trend} isDemo />
-                <RiskConfidenceChart data={trend} isDemo />
+                <ZoomableAnalyticsChart title="Probability Trend" controls={rangeControls} zoom={zoom}><ProbabilityTrendChart data={rangedTrend} isDemo /></ZoomableAnalyticsChart>
+                <ZoomableAnalyticsChart title="Expected Return" controls={rangeControls} zoom={zoom}><ExpectedReturnChart data={rangedTrend} isDemo /></ZoomableAnalyticsChart>
+                <ZoomableAnalyticsChart title="Risk / Confidence" controls={rangeControls} zoom={zoom}><RiskConfidenceChart data={rangedTrend} isDemo /></ZoomableAnalyticsChart>
               </div>
             </AnalyticsSection>
 
             <AnalyticsSection title="Monte Carlo Simulation">
               <div className="analytics-grid two-one">
-                <MonteCarloFanChart simulation={bundle.monteCarlo.data} isDemo={bundle.monteCarlo.isDemo} warnings={bundle.monteCarlo.warnings} />
+                <ZoomableAnalyticsChart title="Monte Carlo Fan" zoom={zoom}><MonteCarloFanChart simulation={bundle.monteCarlo.data} isDemo={bundle.monteCarlo.isDemo} warnings={bundle.monteCarlo.warnings} /></ZoomableAnalyticsChart>
                 <MonteCarloRiskCards simulation={bundle.monteCarlo.data} probabilityOutperformSpy={prediction?.probability} isDemo={bundle.monteCarlo.isDemo} />
               </div>
               <div className="analytics-grid single">
-                <MonteCarloHistogram simulation={bundle.monteCarlo.data} isDemo={bundle.monteCarlo.isDemo} />
+                <ZoomableAnalyticsChart title="Monte Carlo Histogram" zoom={zoom}><MonteCarloHistogram simulation={bundle.monteCarlo.data} isDemo={bundle.monteCarlo.isDemo} /></ZoomableAnalyticsChart>
               </div>
             </AnalyticsSection>
 
             <AnalyticsSection title="Feature Analysis">
               <div className="analytics-grid thirds">
-                <FeatureImportanceChart data={bundle.features.data} isDemo={bundle.features.isDemo} warnings={bundle.features.warnings} />
-                <TechnicalBreakdownChart prediction={prediction} isDemo={bundle.prediction.isDemo} />
-                <FundamentalBreakdownChart prediction={prediction} isDemo={bundle.prediction.isDemo} />
+                <ZoomableAnalyticsChart title="Feature Importance" zoom={zoom}><FeatureImportanceChart data={bundle.features.data} isDemo={bundle.features.isDemo} warnings={bundle.features.warnings} /></ZoomableAnalyticsChart>
+                <ZoomableAnalyticsChart title="Technical Breakdown" zoom={zoom}><TechnicalBreakdownChart prediction={prediction} isDemo={bundle.prediction.isDemo} /></ZoomableAnalyticsChart>
+                <ZoomableAnalyticsChart title="Fundamental Breakdown" zoom={zoom}><FundamentalBreakdownChart prediction={prediction} isDemo={bundle.prediction.isDemo} /></ZoomableAnalyticsChart>
               </div>
               <div className="analytics-grid halves">
-                <NewsSentimentChart prediction={prediction} trend={trend} isDemo={bundle.prediction.isDemo} />
-                <MacroRegimeChart data={bundle.macro.data} isDemo={bundle.macro.isDemo} warnings={bundle.macro.warnings} />
+                <ZoomableAnalyticsChart title="News Sentiment" controls={rangeControls} zoom={zoom}><NewsSentimentChart prediction={prediction} trend={rangedTrend} isDemo={bundle.prediction.isDemo} /></ZoomableAnalyticsChart>
+                <ZoomableAnalyticsChart title="Macro Regime" zoom={zoom}><MacroRegimeChart data={bundle.macro.data} isDemo={bundle.macro.isDemo} warnings={bundle.macro.warnings} /></ZoomableAnalyticsChart>
               </div>
             </AnalyticsSection>
 
             <AnalyticsSection title="Market Ranking">
               <div className="analytics-grid halves">
-                <SectorHeatmap data={bundle.rankings.data} isDemo={bundle.rankings.isDemo} warnings={bundle.rankings.warnings} />
-                <RankingScatterChart data={bundle.rankings.data} isDemo={bundle.rankings.isDemo} />
+                <ZoomableAnalyticsChart title="Sector Heatmap" zoom={zoom}><SectorHeatmap data={bundle.rankings.data} isDemo={bundle.rankings.isDemo} warnings={bundle.rankings.warnings} /></ZoomableAnalyticsChart>
+                <ZoomableAnalyticsChart title="Ranking Scatter" zoom={zoom}><RankingScatterChart data={bundle.rankings.data} isDemo={bundle.rankings.isDemo} /></ZoomableAnalyticsChart>
               </div>
             </AnalyticsSection>
 
             <AnalyticsSection title="Backtest">
               <div className="analytics-grid halves">
-                <BacktestEquityCurve data={bundle.backtest.data.equity} isDemo={bundle.backtest.isDemo} warnings={bundle.backtest.warnings} />
-                <BacktestDrawdownChart data={bundle.backtest.data.drawdown} isDemo={bundle.backtest.isDemo} />
+                <ZoomableAnalyticsChart title="Backtest Equity Curve" controls={rangeControls} zoom={zoom}><BacktestEquityCurve data={rangedEquity} isDemo={bundle.backtest.isDemo} warnings={bundle.backtest.warnings} /></ZoomableAnalyticsChart>
+                <ZoomableAnalyticsChart title="Drawdown Chart" controls={rangeControls} zoom={zoom}><BacktestDrawdownChart data={rangedDrawdown} isDemo={bundle.backtest.isDemo} /></ZoomableAnalyticsChart>
               </div>
               <div className="analytics-grid halves">
-                <CalibrationCurve data={bundle.backtest.data.calibration} isDemo={bundle.backtest.isDemo} />
-                <ConfidenceBucketChart data={bundle.backtest.data.confidenceBuckets} isDemo={bundle.backtest.isDemo} />
+                <ZoomableAnalyticsChart title="Calibration Curve" zoom={zoom}><CalibrationCurve data={bundle.backtest.data.calibration} isDemo={bundle.backtest.isDemo} /></ZoomableAnalyticsChart>
+                <ZoomableAnalyticsChart title="Confidence Buckets" zoom={zoom}><ConfidenceBucketChart data={bundle.backtest.data.confidenceBuckets} isDemo={bundle.backtest.isDemo} /></ZoomableAnalyticsChart>
               </div>
             </AnalyticsSection>
 
             <AnalyticsSection title="Provider Health">
               <div className="analytics-grid halves">
-                <ProviderHealthChart data={bundle.providerHealth.data} isDemo={bundle.providerHealth.isDemo} warnings={bundle.providerHealth.warnings} />
-                <SystemCoverageChart isDemo={bundle.providerHealth.isDemo} warnings={bundle.providerHealth.warnings} />
+                <ZoomableAnalyticsChart title="Provider Health" zoom={zoom}><ProviderHealthChart data={bundle.providerHealth.data} isDemo={bundle.providerHealth.isDemo} warnings={bundle.providerHealth.warnings} /></ZoomableAnalyticsChart>
+                <ZoomableAnalyticsChart title="System Coverage" zoom={zoom}><SystemCoverageChart isDemo={bundle.providerHealth.isDemo} warnings={bundle.providerHealth.warnings} /></ZoomableAnalyticsChart>
               </div>
               <div className="analytics-grid single">
                 <MemoryStatusPanel />
@@ -178,7 +190,18 @@ export default function Analytics() {
           </>
         )}
       </section>
+      <ChartZoomModal chart={zoom.zoomedChart} onClose={zoom.closeChart} />
     </main>
+  );
+}
+
+function ZoomableAnalyticsChart({ title, controls = null, zoom, children }) {
+  return (
+    <div className="analytics-zoom-wrap">
+      <button type="button" className="chart-expand-button analytics-expand-button" onClick={() => zoom.openChart({ title, controls, content: children })} aria-label={`Expand ${title}`}>⛶</button>
+      {controls && <div className="chart-card-controls">{controls}</div>}
+      {children}
+    </div>
   );
 }
 
