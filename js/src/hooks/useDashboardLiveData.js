@@ -10,6 +10,7 @@ const initial = {
   lastUpdated: null,
   source: 'cache',
   isDemo: false,
+  stale: false,
   warnings: [],
   error: '',
 };
@@ -18,6 +19,7 @@ export function useDashboardLiveData(symbols = ['MSFT'], options = {}) {
   const primary = useMemo(() => String(symbols[0] || 'MSFT').toUpperCase(), [symbols]);
   const normalizedSymbols = useMemo(() => [...new Set(symbols.map((symbol) => String(symbol).toUpperCase()).filter(Boolean))], [symbols.join(',')]);
   const horizonDays = options.horizonDays || 5;
+  const benchmark = options.benchmark || 'SPY';
   const [state, dispatch] = useReducer(reducer, initial);
   const requestRef = useRef(0);
 
@@ -25,16 +27,16 @@ export function useDashboardLiveData(symbols = ['MSFT'], options = {}) {
     const requestId = requestRef.current + 1;
     requestRef.current = requestId;
     dispatch({ type: 'status', status: 'connecting', error: '' });
-    const payload = await fetchDashboardSnapshot(primary);
+    const payload = await fetchDashboardSnapshot(primary, { horizonDays, benchmark });
     if (requestRef.current !== requestId) return;
     dispatch({ type: 'snapshot', payload });
-  }, [primary]);
+  }, [benchmark, horizonDays, primary]);
 
   const refresh = useCallback(async () => {
     dispatch({ type: 'status', status: 'reconnecting', error: '' });
-    const payload = await refreshDashboardSymbol(primary);
+    const payload = await refreshDashboardSymbol(primary, { horizonDays, benchmark });
     dispatch({ type: 'snapshot', payload });
-  }, [primary]);
+  }, [benchmark, horizonDays, primary]);
 
   useEffect(() => {
     load().catch((error) => dispatch({ type: 'status', status: 'offline', error: error.message }));
@@ -45,12 +47,13 @@ export function useDashboardLiveData(symbols = ['MSFT'], options = {}) {
       kind: 'dashboard',
       symbols: normalizedSymbols,
       horizonDays,
+      benchmark,
       pollMs: options.pollMs || 20_000,
       onStatus: (status) => dispatch({ type: 'status', status: status.status, error: status.error || '' }),
       onMessage: (message) => dispatch({ type: 'message', message }),
     });
     return unsubscribe;
-  }, [normalizedSymbols.join(','), horizonDays, options.pollMs]);
+  }, [normalizedSymbols.join(','), benchmark, horizonDays, options.pollMs]);
 
   return {
     ...state,
@@ -83,6 +86,7 @@ function reducer(state, action) {
       status: action.payload.meta?.source === 'demo' ? 'fallback' : 'live',
       source: action.payload.meta?.source || 'cache',
       isDemo: Boolean(action.payload.meta?.isDemo),
+      stale: Boolean(action.payload.meta?.stale),
       warnings: action.payload.meta?.warnings || [],
       lastUpdated: action.payload.meta?.asOf || new Date().toISOString(),
       error: '',
@@ -96,6 +100,7 @@ function reducer(state, action) {
       status: action.message.isDemo ? 'fallback' : 'live',
       source: action.message.source || state.source,
       isDemo: Boolean(action.message.isDemo),
+      stale: Boolean(action.message.stale ?? state.stale),
       warnings: action.message.warnings || state.warnings,
       lastUpdated: action.message.timestamp,
       live: { ...state.live, [action.message.type]: action.message },

@@ -6,7 +6,8 @@ export default async function handler(request, response) {
   const started = Date.now();
   try {
     const symbol = normalizeSymbol(request.query?.symbol || request.query?.ticker);
-    const result = await getQuote(symbol);
+    const force = request.query?.force === '1' || request.query?.refresh === '1';
+    const result = await getQuote(symbol, { force });
     return response.status(200).json(ok(result.data, {
       source: result.source,
       isDemo: result.source === 'demo',

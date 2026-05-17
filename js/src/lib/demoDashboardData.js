@@ -9,6 +9,7 @@ import {
   generateDemoRankings,
   generateDemoScores,
   generateDemoSpyComparison,
+  demoAnchorDate,
 } from './demoChartData.js';
 
 const PROFILES = {
@@ -35,7 +36,8 @@ export function generateDemoDashboardData(symbol = 'MSFT') {
       change: last.close - prev.close,
       changePercent: prev.close ? ((last.close - prev.close) / prev.close) * 100 : 0,
       volume: last.volume,
-      marketState: 'unknown',
+      marketState: marketState(),
+      asOf: new Date().toISOString(),
     },
     candles,
     benchmark: generateDemoSpyComparison(ticker),
@@ -62,7 +64,7 @@ export function generateDemoDashboardData(symbol = 'MSFT') {
     technicals: { momentum_20d: 0.04, volatility_20d: 0.22, beta_to_spy: 1.02, relative_strength_vs_spy: 0.018 },
     news: demoNews(ticker),
     sentiment: probabilityHistory.slice(-30).map((row) => ({ date: row.date, sentiment: row.probability - 0.5, volume: 2 })),
-    filings: [{ type: '10-Q', filedAt: '2026-04-25', filingRecencyDays: 21, riskPhraseScore: 0.08 }],
+    filings: [{ type: '10-Q', filedAt: isoOffsetDate(-21), filingRecencyDays: 21, riskPhraseScore: 0.08 }],
     insiders: [{ direction: 'neutral', transactionCount30d: 0, netBuyValue30d: 0 }],
     macro: generateDemoMacroRegime(),
     rankings: generateDemoRankings(),
@@ -75,7 +77,29 @@ export function generateDemoDashboardData(symbol = 'MSFT') {
 
 function demoNews(symbol) {
   return [
-    { title: `${symbol} fallback news score uses deterministic neutral baseline`, source: 'demo', sentiment: 0, publishedAt: '2026-05-16T00:00:00.000Z', eventType: 'provider_fallback' },
-    { title: `${symbol} model includes price, benchmark, macro and risk features`, source: 'demo', sentiment: 0.2, publishedAt: '2026-05-15T00:00:00.000Z', eventType: 'model_context' },
+    { title: `${symbol} fallback news score uses deterministic neutral baseline`, source: 'demo', sentiment: 0, publishedAt: isoOffsetDateTime(0), eventType: 'provider_fallback' },
+    { title: `${symbol} model includes price, benchmark, macro and risk features`, source: 'demo', sentiment: 0.2, publishedAt: isoOffsetDateTime(-1), eventType: 'model_context' },
   ];
+}
+
+function isoOffsetDate(offsetDays) {
+  const date = demoAnchorDate();
+  date.setUTCDate(date.getUTCDate() + offsetDays);
+  return date.toISOString().slice(0, 10);
+}
+
+function isoOffsetDateTime(offsetDays) {
+  const date = demoAnchorDate();
+  date.setUTCDate(date.getUTCDate() + offsetDays);
+  return date.toISOString();
+}
+
+function marketState() {
+  const now = new Date();
+  const day = now.getUTCDay();
+  const minutes = now.getUTCHours() * 60 + now.getUTCMinutes();
+  if (day === 0 || day === 6) return 'closed';
+  if (minutes >= 13 * 60 + 30 && minutes <= 20 * 60) return 'open';
+  if (minutes < 13 * 60 + 30) return 'pre';
+  return 'post';
 }

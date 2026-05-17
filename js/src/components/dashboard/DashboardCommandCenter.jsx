@@ -16,6 +16,7 @@ export default function DashboardCommandCenter({ input, setInput, onSubmit, onSe
   const abortRef = useRef(null);
   const quote = snapshot?.quote || {};
   const company = snapshot?.company || {};
+  const latestCandleDate = snapshot?.candles?.at?.(-1)?.date || snapshot?.candles?.at?.(-1)?.time;
   const selectedSymbol = String(snapshot?.symbol || '').toUpperCase();
   const mergedResults = useMemo(() => {
     const mapped = results.filter((row) => row?.symbol);
@@ -84,6 +85,7 @@ export default function DashboardCommandCenter({ input, setInput, onSubmit, onSe
         <StatusBadge status={quote.marketState || 'fallback'}>{quote.marketState || 'market'}</StatusBadge>
         <SourceBadge source={live.source || controls.dataMode} isDemo={live.isDemo} />
         <FreshnessBadge asOf={live.lastUpdated} stale={live.stale} />
+        {latestCandleDate && <span title="Latest daily OHLC candle. During market closures this remains the last trading session.">Daily: {latestCandleDate}</span>}
       </div>
       <div className="investment-context">
         <button className="investment-button secondary" type="button" onClick={live.refresh}>Refresh</button>

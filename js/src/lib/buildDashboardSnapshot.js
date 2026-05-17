@@ -7,15 +7,16 @@ import { cacheStats } from './cache.js';
 import { getQueueStatus } from './jobs.js';
 import { getOhlcv, getQuote, providerReadiness } from './providers/index.js';
 
-export async function buildDashboardSnapshot(symbol = 'MSFT', { horizonDays = 5 } = {}) {
+export async function buildDashboardSnapshot(symbol = 'MSFT', { horizonDays = 5, benchmarkSymbol = 'SPY', force = false } = {}) {
   const started = Date.now();
   const ticker = String(symbol || 'MSFT').toUpperCase();
+  const benchmarkTicker = String(benchmarkSymbol || 'SPY').toUpperCase();
   const demo = generateDemoDashboardData(ticker);
   const warnings = [];
   const [quote, prices, spy, queue] = await Promise.all([
-    getQuote(ticker).catch((error) => ({ ...demoProvider(demo.quote), warnings: [error.message] })),
-    getOhlcv(ticker, { limit: 520 }).catch((error) => ({ ...demoProvider(demo.candles), warnings: [error.message] })),
-    getOhlcv('SPY', { limit: 520 }).catch((error) => ({ ...demoProvider(demo.candles), warnings: [error.message] })),
+    getQuote(ticker, { force }).catch((error) => ({ ...demoProvider(demo.quote), warnings: [error.message] })),
+    getOhlcv(ticker, { limit: 1500, force }).catch((error) => ({ ...demoProvider(demo.candles), warnings: [error.message] })),
+    getOhlcv(benchmarkTicker, { limit: 1500, force }).catch((error) => ({ ...demoProvider(demo.candles), warnings: [error.message] })),
     getQueueStatus().catch(() => ({ queueDepth: 0, activeJobs: 0 })),
   ]);
   warnings.push(...(quote.warnings || []), ...(prices.warnings || []), ...(spy.warnings || []));
@@ -80,7 +81,7 @@ export async function buildDashboardSnapshot(symbol = 'MSFT', { horizonDays = 5 
       source: quote.source || prices.source || 'cache',
       isDemo: quote.source === 'demo' && prices.source === 'demo',
       stale: Boolean(quote.cache?.stale || prices.cache?.stale),
-      asOf: new Date().toISOString(),
+      asOf: quote.data?.asOf || new Date().toISOString(),
       latencyMs: Date.now() - started,
       warnings: [...new Set(warnings.filter(Boolean))],
     },

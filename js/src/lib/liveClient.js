@@ -1,8 +1,8 @@
 const subscriptions = new Map();
 
-export function createLiveSubscription({ kind, symbols = [], pollMs = 15000, horizonDays = 5, onMessage, onStatus }) {
+export function createLiveSubscription({ kind, symbols = [], pollMs = 15000, horizonDays = 5, benchmark = 'SPY', onMessage, onStatus }) {
   const normalized = [...new Set(symbols.map((symbol) => String(symbol).toUpperCase()).filter(Boolean))].sort();
-  const key = `${kind}:${normalized.join(',')}:${horizonDays}`;
+  const key = `${kind}:${normalized.join(',')}:${horizonDays}:${benchmark}`;
   if (subscriptions.has(key)) {
     const existing = subscriptions.get(key);
     existing.refs += 1;
@@ -21,7 +21,7 @@ export function createLiveSubscription({ kind, symbols = [], pollMs = 15000, hor
     controller: null,
   };
   subscriptions.set(key, state);
-  start(state, { kind, symbols: normalized, pollMs, horizonDays });
+  start(state, { kind, symbols: normalized, pollMs, horizonDays, benchmark });
   return () => release(key, onMessage, onStatus);
 }
 
@@ -110,8 +110,8 @@ function release(key, onMessage, onStatus) {
   subscriptions.delete(key);
 }
 
-function streamUrl({ kind, symbols, horizonDays }) {
-  if (kind === 'dashboard') return `/api/stream/dashboard?symbols=${encodeURIComponent(symbols.join(','))}&horizonDays=${horizonDays}`;
+function streamUrl({ kind, symbols, horizonDays, benchmark }) {
+  if (kind === 'dashboard') return `/api/stream/dashboard?symbols=${encodeURIComponent(symbols.join(','))}&horizonDays=${horizonDays}&benchmark=${encodeURIComponent(benchmark || 'SPY')}`;
   if (kind === 'quotes') return `/api/stream/quotes?symbols=${encodeURIComponent(symbols.join(','))}`;
   if (kind === 'probabilities') return `/api/stream/probabilities?symbols=${encodeURIComponent(symbols.join(','))}&horizonDays=${horizonDays}`;
   if (kind === 'provider-health') return '/api/stream/provider-health';
@@ -119,8 +119,8 @@ function streamUrl({ kind, symbols, horizonDays }) {
   return '/api/stream/system';
 }
 
-function pollUrl({ kind, symbols, horizonDays }) {
-  if (kind === 'dashboard') return `/api/dashboard/${encodeURIComponent(symbols[0] || 'MSFT')}/snapshot`;
+function pollUrl({ kind, symbols, horizonDays, benchmark }) {
+  if (kind === 'dashboard') return `/api/dashboard/${encodeURIComponent(symbols[0] || 'MSFT')}/snapshot?horizonDays=${horizonDays}&benchmark=${encodeURIComponent(benchmark || 'SPY')}`;
   if (kind === 'quotes') return `/api/market/quote/${encodeURIComponent(symbols[0] || 'MSFT')}`;
   if (kind === 'probabilities') return `/api/probabilities/${encodeURIComponent(symbols[0] || 'MSFT')}?horizonDays=${horizonDays}`;
   if (kind === 'provider-health') return '/api/system/providers';

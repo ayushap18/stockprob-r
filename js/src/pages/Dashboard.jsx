@@ -59,7 +59,7 @@ export default function DashboardPage() {
   });
   const zoom = useChartZoom();
   const { controls, updateControl, patchControls } = useDashboardState({ selectedSymbol: initialTicker.toUpperCase() });
-  const live = useDashboardLiveData([symbol, controls.benchmark, 'SPY', 'QQQ'], { horizonDays: controls.horizonDays });
+  const live = useDashboardLiveData([symbol, controls.benchmark, 'SPY', 'QQQ'], { horizonDays: controls.horizonDays, benchmark: controls.benchmark });
   const snapshot = live.snapshot;
   const scenarioSimulation = useScenarioSimulation(snapshot, controls);
   const rangeData = useMemo(() => ({
@@ -117,6 +117,81 @@ export default function DashboardPage() {
   const volatilityAnnual = Math.max(0.08, Math.min(1.4, Number(snapshot.technicals?.volatility_20d || probabilities.riskScore || 0.24)));
   const priceControls = <><RangeSelector value={chartRange} onChange={setChartRange} /><IndicatorControls value={priceIndicators} onChange={setPriceIndicators} /></>;
   const rangeControls = <RangeSelector value={chartRange} onChange={setChartRange} />;
+  const openZoom = (key) => zoom.openChart({ key });
+  const zoomedChart = useMemo(() => {
+    const key = zoom.zoomedChart?.key;
+    if (!key) return zoom.zoomedChart;
+    const charts = {
+      price: {
+        title: 'Price Action',
+        caption: `${snapshot.symbol} · ${chartRange}`,
+        controls: priceControls,
+        content: <PriceCandlestickChart data={snapshot.candles} benchmarkData={rangeData.benchmark} range={chartRange} indicators={priceIndicators} isDemo={live.isDemo} />,
+      },
+      benchmark: {
+        title: `${snapshot.symbol} vs ${controls.benchmark}`,
+        caption: `Benchmark comparison · ${chartRange}`,
+        controls: rangeControls,
+        content: <BenchmarkComparisonChart data={rangeData.benchmark} isDemo={live.isDemo} />,
+      },
+      probability: {
+        title: 'Probability Trend',
+        caption: chartRange,
+        controls: rangeControls,
+        content: <ProbabilityTrendChart data={rangeData.probabilityHistory} isDemo={live.isDemo} />,
+      },
+      threshold: {
+        title: 'Threshold Probability',
+        caption: 'Custom gain/loss',
+        content: <ThresholdProbabilityChart simulation={scenarioSimulation} gainThreshold={controls.gainThreshold} lossThreshold={controls.lossThreshold} isDemo={live.isDemo} />,
+      },
+      risk: {
+        title: 'Risk / Confidence',
+        caption: chartRange,
+        controls: rangeControls,
+        content: <RiskConfidenceChart data={rangeData.probabilityHistory} isDemo={live.isDemo} />,
+      },
+      monteCarlo: {
+        title: 'Monte Carlo Fan',
+        caption: `${controls.horizonDays}D · ${controls.scenario}`,
+        content: <MonteCarloFanChart simulation={scenarioSimulation} isDemo={live.isDemo} height={520} />,
+      },
+      histogram: {
+        title: 'Return Distribution',
+        caption: 'VaR / CVaR',
+        content: <MonteCarloHistogram simulation={scenarioSimulation} isDemo={live.isDemo} height={500} />,
+      },
+      importance: {
+        title: 'Scenario Importance',
+        caption: 'Top model weights',
+        content: <FeatureImportanceChart data={snapshot.features} isDemo={live.isDemo} height={500} limit={14} />,
+      },
+      volume: {
+        title: 'Volume',
+        caption: chartRange,
+        controls: rangeControls,
+        content: <VolumeChart data={rangeData.candles} isDemo={live.isDemo} />,
+      },
+      expectedReturn: {
+        title: 'Expected Return',
+        caption: chartRange,
+        controls: rangeControls,
+        content: <ExpectedReturnChart data={rangeData.probabilityHistory} isDemo={live.isDemo} />,
+      },
+      relativeStrength: {
+        title: 'Relative Strength',
+        caption: chartRange,
+        controls: rangeControls,
+        content: <RelativeStrengthChart data={rangeData.benchmark} benchmark={controls.benchmark} isDemo={live.isDemo} />,
+      },
+      scenario: {
+        title: 'Scenario Comparison',
+        caption: 'Assumptions',
+        content: <ScenarioComparisonChart expectedReturn={expectedAnnual} volatility={volatilityAnnual} isDemo={live.isDemo} />,
+      },
+    };
+    return charts[key] || zoom.zoomedChart;
+  }, [chartRange, controls.benchmark, controls.gainThreshold, controls.horizonDays, controls.lossThreshold, controls.scenario, expectedAnnual, live.isDemo, priceControls, priceIndicators, rangeControls, rangeData.benchmark, rangeData.candles, rangeData.probabilityHistory, scenarioSimulation, snapshot.candles, snapshot.features, snapshot.symbol, volatilityAnnual, zoom.zoomedChart]);
 
   return (
     <AppShell active="Dashboard" rightSlot={<StatusBadge status={live.status}>{live.status || 'live'}</StatusBadge>}>
@@ -126,33 +201,23 @@ export default function DashboardPage() {
       <DashboardMetricStrip snapshot={snapshot} controls={controls} simulation={scenarioSimulation} />
 
       <section className="investment-grid two" style={{ marginTop: 10 }}>
-        <ChartCard className="primary-chart-card" title="Price Action" caption="Candles + volume" controls={priceControls} onExpand={() => zoom.openChart({
-          title: 'Price Action',
-          caption: `${snapshot.symbol} · ${chartRange}`,
-          controls: priceControls,
-          content: <PriceCandlestickChart data={snapshot.candles} benchmarkData={rangeData.benchmark} range={chartRange} indicators={priceIndicators} isDemo={live.isDemo} />,
-        })}>
+        <ChartCard className="primary-chart-card" title="Price Action" caption="Candles + volume" controls={priceControls} onExpand={() => openZoom('price')}>
           <PriceCandlestickChart data={snapshot.candles} benchmarkData={rangeData.benchmark} range={chartRange} indicators={priceIndicators} isDemo={live.isDemo} />
         </ChartCard>
-        <ChartCard className="primary-chart-card" title={`${snapshot.symbol} vs ${controls.benchmark}`} caption="Benchmark comparison" controls={rangeControls} onExpand={() => zoom.openChart({
-          title: `${snapshot.symbol} vs ${controls.benchmark}`,
-          caption: `Benchmark comparison · ${chartRange}`,
-          controls: rangeControls,
-          content: <BenchmarkComparisonChart data={rangeData.benchmark} isDemo={live.isDemo} />,
-        })}>
+        <ChartCard className="primary-chart-card" title={`${snapshot.symbol} vs ${controls.benchmark}`} caption="Benchmark comparison" controls={rangeControls} onExpand={() => openZoom('benchmark')}>
           <BenchmarkComparisonChart data={rangeData.benchmark} isDemo={live.isDemo} />
         </ChartCard>
       </section>
 
       <section className="investment-grid terminal-six" style={{ marginTop: 7 }}>
-        <ChartCard title="Probability Trend" caption="Threshold at 50%" controls={rangeControls} onExpand={() => zoom.openChart({ title: 'Probability Trend', caption: chartRange, controls: rangeControls, content: <ProbabilityTrendChart data={rangeData.probabilityHistory} isDemo={live.isDemo} /> })}><ProbabilityTrendChart data={rangeData.probabilityHistory} isDemo={live.isDemo} /></ChartCard>
-        <ChartCard title="Threshold Probability" caption="Custom gain/loss" onExpand={() => zoom.openChart({ title: 'Threshold Probability', caption: 'Custom gain/loss', content: <ThresholdProbabilityChart simulation={scenarioSimulation} gainThreshold={controls.gainThreshold} lossThreshold={controls.lossThreshold} isDemo={live.isDemo} /> })}><ThresholdProbabilityChart simulation={scenarioSimulation} gainThreshold={controls.gainThreshold} lossThreshold={controls.lossThreshold} isDemo={live.isDemo} /></ChartCard>
-        <ChartCard title="Risk / Confidence" caption="Model stability" controls={rangeControls} onExpand={() => zoom.openChart({ title: 'Risk / Confidence', caption: chartRange, controls: rangeControls, content: <RiskConfidenceChart data={rangeData.probabilityHistory} isDemo={live.isDemo} /> })}><RiskConfidenceChart data={rangeData.probabilityHistory} isDemo={live.isDemo} /></ChartCard>
-        <ChartCard title="Monte Carlo" caption={`${controls.horizonDays}D fan`} onExpand={() => zoom.openChart({ title: 'Monte Carlo Fan', caption: `${controls.horizonDays}D · ${controls.scenario}`, content: <MonteCarloFanChart simulation={scenarioSimulation} isDemo={live.isDemo} height={520} /> })}>
+        <ChartCard title="Probability Trend" caption="Threshold at 50%" controls={rangeControls} onExpand={() => openZoom('probability')}><ProbabilityTrendChart data={rangeData.probabilityHistory} isDemo={live.isDemo} /></ChartCard>
+        <ChartCard title="Threshold Probability" caption="Custom gain/loss" onExpand={() => openZoom('threshold')}><ThresholdProbabilityChart simulation={scenarioSimulation} gainThreshold={controls.gainThreshold} lossThreshold={controls.lossThreshold} isDemo={live.isDemo} /></ChartCard>
+        <ChartCard title="Risk / Confidence" caption="Model stability" controls={rangeControls} onExpand={() => openZoom('risk')}><RiskConfidenceChart data={rangeData.probabilityHistory} isDemo={live.isDemo} /></ChartCard>
+        <ChartCard title="Monte Carlo" caption={`${controls.horizonDays}D fan`} onExpand={() => openZoom('monteCarlo')}>
           <MonteCarloFanChart simulation={scenarioSimulation} isDemo={live.isDemo} height={128} />
         </ChartCard>
-        <ChartCard title="Return Distribution" caption="VaR / CVaR" onExpand={() => zoom.openChart({ title: 'Return Distribution', caption: 'VaR / CVaR', content: <MonteCarloHistogram simulation={scenarioSimulation} isDemo={live.isDemo} height={500} /> })}><MonteCarloHistogram simulation={scenarioSimulation} isDemo={live.isDemo} height={128} /></ChartCard>
-        <ChartCard title="Scenario Importance" caption="Top model weights" onExpand={() => zoom.openChart({ title: 'Scenario Importance', caption: 'Top model weights', content: <FeatureImportanceChart data={snapshot.features} isDemo={live.isDemo} height={500} limit={14} /> })}><FeatureImportanceChart data={snapshot.features} isDemo={live.isDemo} height={128} limit={8} /></ChartCard>
+        <ChartCard title="Return Distribution" caption="VaR / CVaR" onExpand={() => openZoom('histogram')}><MonteCarloHistogram simulation={scenarioSimulation} isDemo={live.isDemo} height={128} /></ChartCard>
+        <ChartCard title="Scenario Importance" caption="Top model weights" onExpand={() => openZoom('importance')}><FeatureImportanceChart data={snapshot.features} isDemo={live.isDemo} height={128} limit={8} /></ChartCard>
       </section>
 
       <section className="investment-grid terminal-five" style={{ marginTop: 7 }}>
@@ -164,13 +229,13 @@ export default function DashboardPage() {
       </section>
 
       <section className="investment-grid three" style={{ marginTop: 10 }}>
-        <ChartCard title="Volume" caption="Liquidity confirmation" controls={rangeControls} onExpand={() => zoom.openChart({ title: 'Volume', caption: chartRange, controls: rangeControls, content: <VolumeChart data={rangeData.candles} isDemo={live.isDemo} /> })}><VolumeChart data={rangeData.candles} isDemo={live.isDemo} /></ChartCard>
-        <ChartCard title="Expected Return" caption="Return history" controls={rangeControls} onExpand={() => zoom.openChart({ title: 'Expected Return', caption: chartRange, controls: rangeControls, content: <ExpectedReturnChart data={rangeData.probabilityHistory} isDemo={live.isDemo} /> })}><ExpectedReturnChart data={rangeData.probabilityHistory} isDemo={live.isDemo} /></ChartCard>
-        <ChartCard title="Relative Strength" caption={`Spread vs ${controls.benchmark}`} controls={rangeControls} onExpand={() => zoom.openChart({ title: 'Relative Strength', caption: chartRange, controls: rangeControls, content: <RelativeStrengthChart data={rangeData.benchmark} benchmark={controls.benchmark} isDemo={live.isDemo} /> })}><RelativeStrengthChart data={rangeData.benchmark} benchmark={controls.benchmark} isDemo={live.isDemo} /></ChartCard>
+        <ChartCard title="Volume" caption="Liquidity confirmation" controls={rangeControls} onExpand={() => openZoom('volume')}><VolumeChart data={rangeData.candles} isDemo={live.isDemo} /></ChartCard>
+        <ChartCard title="Expected Return" caption="Return history" controls={rangeControls} onExpand={() => openZoom('expectedReturn')}><ExpectedReturnChart data={rangeData.probabilityHistory} isDemo={live.isDemo} /></ChartCard>
+        <ChartCard title="Relative Strength" caption={`Spread vs ${controls.benchmark}`} controls={rangeControls} onExpand={() => openZoom('relativeStrength')}><RelativeStrengthChart data={rangeData.benchmark} benchmark={controls.benchmark} isDemo={live.isDemo} /></ChartCard>
       </section>
 
       <section className="investment-grid two" style={{ marginTop: 10 }}>
-        <ChartCard title="Scenario Comparison" caption="Expected return and volatility assumptions" onExpand={() => zoom.openChart({ title: 'Scenario Comparison', caption: 'Assumptions', content: <ScenarioComparisonChart expectedReturn={expectedAnnual} volatility={volatilityAnnual} isDemo={live.isDemo} /> })}><ScenarioComparisonChart expectedReturn={expectedAnnual} volatility={volatilityAnnual} isDemo={live.isDemo} /></ChartCard>
+        <ChartCard title="Scenario Comparison" caption="Expected return and volatility assumptions" onExpand={() => openZoom('scenario')}><ScenarioComparisonChart expectedReturn={expectedAnnual} volatility={volatilityAnnual} isDemo={live.isDemo} /></ChartCard>
         <MonteCarloRiskCards simulation={scenarioSimulation} probabilityOutperformSpy={probabilities.probabilityOutperformSpy} isDemo={live.isDemo} />
       </section>
       <FeatureEnginePanel snapshot={snapshot} predictionView={predictionView} isDemo={live.isDemo} onZoom={zoom.openChart} />
@@ -181,7 +246,7 @@ export default function DashboardPage() {
           <CompactTable columns={[{ key: 'title', label: 'Headline' }, { key: 'sentiment', label: 'Score' }, { key: 'source', label: 'Source' }]} rows={snapshot.news || []} renderCell={renderNewsCell} />
         </section>
       </section>
-      <ChartZoomModal chart={zoom.zoomedChart} onClose={zoom.closeChart} />
+      <ChartZoomModal chart={zoomedChart} onClose={zoom.closeChart} />
     </AppShell>
   );
 }
