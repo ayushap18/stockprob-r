@@ -683,6 +683,162 @@
   padding: 7px 6px;
 }
 
+.screen-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: flex-end;
+  align-items: end;
+}
+
+.screen-primary-table .compact-table-wrap {
+  max-height: 360px;
+}
+
+.screen-primary-table .compact-table th,
+.screen-primary-table .compact-table td {
+  padding: 7px 8px;
+}
+
+.ranking-main-grid {
+  grid-template-columns: minmax(0, 1.4fr) minmax(300px, 0.88fr) minmax(280px, 0.72fr);
+}
+
+.ranking-main-grid .analytics-chart-frame {
+  height: 230px !important;
+  min-height: 220px !important;
+}
+
+.screen-link {
+  display: inline-flex;
+  margin-top: 8px;
+  color: #8fb7ff;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.backtest-top-grid {
+  grid-template-columns: minmax(0, 1.45fr) minmax(300px, 0.78fr) minmax(300px, 0.78fr);
+}
+
+.backtest-mid-grid {
+  grid-template-columns: minmax(300px, 0.86fr) minmax(280px, 0.72fr) minmax(430px, 1.1fr);
+}
+
+.backtest-top-grid .analytics-chart-frame,
+.backtest-mid-grid .analytics-chart-frame {
+  height: 224px !important;
+  min-height: 214px !important;
+}
+
+.return-distribution-card,
+.monthly-heatmap-card {
+  min-height: 246px;
+}
+
+.distribution-bars {
+  display: grid;
+  gap: 8px;
+  padding: 4px 2px 0;
+}
+
+.distribution-row {
+  display: grid;
+  grid-template-columns: 54px 1fr 34px;
+  gap: 8px;
+  align-items: center;
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.distribution-row b {
+  display: block;
+  height: 13px;
+  border-radius: 3px;
+  background: linear-gradient(90deg, rgba(154, 164, 178, 0.2), rgba(154, 164, 178, 0.55));
+}
+
+.distribution-row b.bull {
+  background: linear-gradient(90deg, rgba(22, 199, 132, 0.18), rgba(22, 199, 132, 0.82));
+}
+
+.distribution-row b.bear {
+  background: linear-gradient(90deg, rgba(234, 57, 67, 0.18), rgba(234, 57, 67, 0.82));
+}
+
+.distribution-row em {
+  color: var(--text-secondary);
+  font-style: normal;
+  text-align: right;
+}
+
+.health-top-grid {
+  grid-template-columns: minmax(0, 1.55fr) minmax(340px, 0.75fr);
+}
+
+.health-provider-table .compact-table-wrap {
+  max-height: 315px;
+}
+
+.health-provider-table .compact-table th,
+.health-provider-table .compact-table td,
+.health-runtime-grid .compact-table th,
+.health-runtime-grid .compact-table td {
+  padding: 7px 8px;
+}
+
+.coverage-list {
+  display: grid;
+  gap: 10px;
+}
+
+.coverage-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 5px 12px;
+  align-items: center;
+}
+
+.coverage-row span {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.coverage-row b {
+  color: var(--bull);
+  font-size: 13px;
+}
+
+.coverage-row i {
+  grid-column: 1 / -1;
+  display: block;
+  height: 5px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(154, 164, 178, 0.1);
+}
+
+.coverage-row em {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, rgba(22, 199, 132, 0.34), rgba(22, 199, 132, 0.9));
+}
+
+.datahealth-chart-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.datahealth-chart-grid .analytics-chart-frame {
+  height: 190px !important;
+  min-height: 180px !important;
+}
+
+.health-mini-panel {
+  min-height: 206px;
+}
+
 .analytics-command {
   padding: 14px;
 }
@@ -1156,7 +1312,12 @@
   .investment-grid.four,
   .investment-grid.terminal-six,
   .investment-grid.terminal-five,
-  .investment-grid.sidebar {
+  .investment-grid.sidebar,
+  .ranking-main-grid,
+  .backtest-top-grid,
+  .backtest-mid-grid,
+  .health-top-grid,
+  .datahealth-chart-grid {
     grid-template-columns: 1fr;
   }
 

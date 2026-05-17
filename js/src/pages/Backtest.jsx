@@ -60,7 +60,11 @@ export default function BacktestPage() {
           <span className="source-badge">No lookahead</span>
           {loading && <span className="status-badge degraded">running</span>}
         </div>
-        <a className="investment-button secondary" href={`/dashboard?ticker=${encodeURIComponent(ticker)}`}>Dashboard</a>
+        <div className="screen-actions">
+          <button className="investment-button" type="button" onClick={() => fetchBacktestReport(ticker, { horizon }).then(setPayload)}>Run Backtest</button>
+          <button className="investment-button secondary" type="button">Save</button>
+          <button className="investment-button secondary" type="button">Export</button>
+        </div>
       </section>
 
       {payload?.meta?.warnings?.length ? <section className="warning-strip">{payload.meta.warnings.map((warning) => <span key={warning}>{warning}</span>)}</section> : null}
@@ -78,39 +82,30 @@ export default function BacktestPage() {
         <MetricCard label="Trades" value={String(metrics.tradeCount || 0)} caption={`PF ${Number(metrics.profitFactor || 0).toFixed(2)}`} tone="neutral" />
       </section>
 
-      <section className="investment-grid two" style={{ marginTop: 10 }}>
-        <ChartCard title="Equity Curve" caption="Strategy vs SPY">
+      <section className="investment-grid backtest-top-grid" style={{ marginTop: 10 }}>
+        <ChartCard title="Equity Curve" caption="Strategy vs SPY" className="backtest-equity-card">
           <BacktestEquityCurve data={report?.equity || []} isDemo={payload?.meta?.isDemo} />
         </ChartCard>
         <ChartCard title="Drawdown" caption="Validation risk">
           <BacktestDrawdownChart data={report?.drawdown || []} isDemo={payload?.meta?.isDemo} />
         </ChartCard>
-      </section>
-
-      <section className="investment-grid two" style={{ marginTop: 10 }}>
-        <section className="table-card">
-          <div className="section-title-row"><div><span className="section-kicker">Monthly Excess Return Heatmap</span><h2>{strategy.replace(/_/g, ' ')}</h2></div><span className="source-badge">{rebalance}</span></div>
-          <CompactTable columns={[{ key: 'year', label: 'Year' }, ...['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'].map((month) => ({ key: month, label: month }))]} rows={monthlyRows} renderCell={renderMonth} />
-        </section>
-        <section className="table-card">
-          <div className="section-title-row"><div><span className="section-kicker">Validation Notes</span><h2>Execution Assumptions</h2></div></div>
-          <CompactTable columns={[{ key: 'metric', label: 'Input' }, { key: 'value', label: 'Value' }]} rows={[
-            { metric: 'Threshold', value: pct(threshold) },
-            { metric: 'Transaction Cost', value: '0.05%' },
-            { metric: 'Slippage', value: '0.02%' },
-            { metric: 'Date Range', value: `${dateFrom} → ${dateTo}` },
-            { metric: 'Lookahead Guard', value: 'enabled' },
-          ]} />
-        </section>
-      </section>
-
-      <section className="investment-grid two" style={{ marginTop: 10 }}>
-        <ChartCard title="Calibration" caption="Predicted vs realized">
+        <ChartCard title="Calibration Curve" caption="Predicted vs observed">
           <CalibrationCurve data={report?.calibration || []} isDemo={payload?.meta?.isDemo} />
         </ChartCard>
+      </section>
+
+      <section className="investment-grid backtest-mid-grid" style={{ marginTop: 10 }}>
         <ChartCard title="Confidence Buckets" caption="Hit rate and return">
           <ConfidenceBucketChart data={report?.confidenceBuckets || []} isDemo={payload?.meta?.isDemo} />
         </ChartCard>
+        <section className="table-card return-distribution-card">
+          <div className="section-title-row"><div><span className="section-kicker">Return Distribution</span><h2>{horizon}D trades</h2></div></div>
+          <ReturnDistribution rows={rows} />
+        </section>
+        <section className="table-card monthly-heatmap-card">
+          <div className="section-title-row"><div><span className="section-kicker">Monthly Excess Return Heatmap</span><h2>{strategy.replace(/_/g, ' ')}</h2></div><span className="source-badge">{rebalance}</span></div>
+          <CompactTable columns={[{ key: 'year', label: 'Year' }, ...['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'].map((month) => ({ key: month, label: month }))]} rows={monthlyRows} renderCell={renderMonth} />
+        </section>
       </section>
 
       <section className="table-card" style={{ marginTop: 10 }}>
@@ -129,8 +124,34 @@ export default function BacktestPage() {
           renderCell={renderTrade}
         />
       </section>
+
+      <section className="table-card" style={{ marginTop: 10 }}>
+        <div className="section-title-row"><div><span className="section-kicker">Validation Notes</span><h2>Execution Assumptions</h2></div></div>
+        <CompactTable columns={[{ key: 'metric', label: 'Input' }, { key: 'value', label: 'Value' }]} rows={[
+          { metric: 'Threshold', value: pct(threshold) },
+          { metric: 'Transaction Cost', value: '0.05%' },
+          { metric: 'Slippage', value: '0.02%' },
+          { metric: 'Date Range', value: `${dateFrom} → ${dateTo}` },
+          { metric: 'Lookahead Guard', value: 'enabled' },
+        ]} />
+      </section>
     </AppShell>
   );
+}
+
+function ReturnDistribution({ rows = [] }) {
+  const bins = useMemo(() => {
+    const edges = [-0.15, -0.1, -0.06, -0.03, 0, 0.03, 0.06, 0.1, 0.15];
+    const counts = edges.slice(0, -1).map((start, index) => ({ start, end: edges[index + 1], count: 0 }));
+    rows.forEach((row) => {
+      const value = Number(row.return || row.excessReturn || 0);
+      const bucket = counts.find((item) => value >= item.start && value < item.end) || counts.at(-1);
+      if (bucket) bucket.count += 1;
+    });
+    const max = Math.max(1, ...counts.map((item) => item.count));
+    return counts.map((item) => ({ ...item, width: `${Math.max(4, (item.count / max) * 100)}%` }));
+  }, [rows]);
+  return <div className="distribution-bars">{bins.map((bin) => <div key={bin.start} className="distribution-row"><span>{signedPct(bin.start)}</span><b className={bin.end <= 0 ? 'bear' : 'bull'} style={{ width: bin.width }} /><em>{bin.count}</em></div>)}</div>;
 }
 
 function buildMonthlyHeatmap(equity = []) {

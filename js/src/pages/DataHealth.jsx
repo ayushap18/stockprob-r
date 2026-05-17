@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useState } from 'react';
 import AppShell from '../components/ui/AppShell.jsx';
 import ChartCard from '../components/ui/ChartCard.jsx';
 import CompactTable from '../components/ui/CompactTable.jsx';
-import MetricCard from '../components/ui/MetricCard.jsx';
 import StatusBadge from '../components/ui/StatusBadge.jsx';
 import { ProviderHealthChart, SystemCoverageChart } from '../components/charts/index.js';
 import { fetchDataHealth } from '../lib/dataHealthApi.js';
@@ -25,6 +24,7 @@ export default function DataHealthPage() {
   const coverageRows = useMemo(() => Object.entries(data?.coverage || {}).map(([key, value]) => ({ key, value })), [data?.coverage]);
   const queueRows = useMemo(() => Object.entries(data?.queues || {}).map(([key, value]) => ({ key, value })), [data?.queues]);
   const memory = data?.memory || {};
+  const okCount = providers.filter((row) => ['ok', 'fallback'].includes(String(row.status).toLowerCase())).length;
   const incidentRows = useMemo(() => providers.filter((row) => !['ok', 'fallback'].includes(String(row.status).toLowerCase())).map((row, index) => ({
     id: index + 1,
     severity: row.status === 'not_configured' ? 'missing' : 'degraded',
@@ -50,61 +50,102 @@ export default function DataHealthPage() {
 
       {payload?.meta?.warnings?.length ? <section className="warning-strip">{payload.meta.warnings.map((warning) => <span key={warning}>{warning}</span>)}</section> : null}
 
-      <section className="investment-grid kpi-strip">
-        <MetricCard label="Providers" value={String(providers.length)} caption="tracked" tone="neutral" />
-        <MetricCard label="OK" value={String(providers.filter((row) => ['ok', 'fallback'].includes(String(row.status).toLowerCase())).length)} caption="online/fallback" tone="bull" />
-        <MetricCard label="Degraded" value={String(providers.filter((row) => String(row.status).toLowerCase().includes('degraded')).length)} caption="needs attention" tone="warn" />
-        <MetricCard label="Down" value={String(providers.filter((row) => ['down', 'failed'].includes(String(row.status).toLowerCase())).length)} caption="offline" tone="bear" />
-        <MetricCard label="Queue" value={String(data?.queues?.queueDepth ?? 0)} caption="depth" tone={(data?.queues?.queueDepth || 0) > 10 ? 'warn' : 'bull'} />
-        <MetricCard label="Cache Entries" value={String(memory.cacheEntries ?? memory.entries ?? 0)} caption="memory/redis" tone="neutral" />
-        <MetricCard label="Hit Rate" value={pct(memory.cacheHitRate)} caption="cache" tone={(memory.cacheHitRate || 0) > 0.55 ? 'bull' : 'warn'} />
-        <MetricCard label="In Flight" value={String(memory.activeInFlightRequests ?? 0)} caption="requests" tone={(memory.activeInFlightRequests || 0) > 20 ? 'warn' : 'bull'} />
-        <MetricCard label="Subscriptions" value={String(memory.activeSubscriptions ?? 0)} caption="live clients" tone="neutral" />
-        <MetricCard label="Polling" value={String(memory.activePollingLoops ?? 0)} caption="fallback loops" tone={(memory.activePollingLoops || 0) > 12 ? 'warn' : 'bull'} />
-      </section>
-
-      <section className="investment-grid two" style={{ marginTop: 10 }}>
-        <ChartCard title="Provider Status" caption="Latency / fallback / warnings">
-          <ProviderHealthChart data={providers} isDemo={payload?.meta?.isDemo} />
-        </ChartCard>
-        <ChartCard title="System Coverage" caption="Universe coverage">
-          <SystemCoverageChart isDemo={payload?.meta?.isDemo} warnings={payload?.meta?.warnings} />
-        </ChartCard>
-      </section>
-
-      <section className="investment-grid three" style={{ marginTop: 10 }}>
-        <section className="table-card">
+      <section className="investment-grid health-top-grid">
+        <section className="table-card health-provider-table">
           <div className="section-title-row"><div><span className="section-kicker">Providers</span><h2>Status Table</h2></div></div>
           <CompactTable columns={[
             { key: 'provider', label: 'Provider' },
             { key: 'status', label: 'Status' },
+            { key: 'lastSuccessAt', label: 'Last Success' },
             { key: 'averageLatencyMs', label: 'Latency' },
             { key: 'errorRate', label: 'Error' },
             { key: 'fallbackCount24h', label: 'Fallbacks' },
             { key: 'freshness', label: 'Freshness' },
           ]} rows={providers} renderCell={renderProvider} />
         </section>
-        <section className="table-card">
+        <section className="table-card health-coverage-card">
           <div className="section-title-row"><div><span className="section-kicker">Coverage</span><h2>Data Coverage</h2></div></div>
-          <CompactTable columns={[{ key: 'key', label: 'Dataset' }, { key: 'value', label: 'Coverage' }]} rows={coverageRows} renderCell={(row, column) => column.key === 'value' ? pct(row.value) : labelize(row.key)} />
+          <div className="coverage-list">
+            {coverageRows.map((row) => <CoverageRow key={row.key} label={labelize(row.key)} value={Number(row.value)} />)}
+          </div>
+        </section>
+      </section>
+
+      <section className="investment-grid datahealth-chart-grid" style={{ marginTop: 10 }}>
+        <ChartCard title="Provider Latency" caption="p95 / avg">
+          <ProviderHealthChart data={providers} isDemo={payload?.meta?.isDemo} />
+        </ChartCard>
+        <section className="table-card">
+          <div className="section-title-row"><div><span className="section-kicker">Error Rate</span><h2>24h provider errors</h2></div></div>
+          <CompactTable columns={[{ key: 'provider', label: 'Provider' }, { key: 'errorRate', label: 'Error' }, { key: 'fallbackCount24h', label: 'Fallback' }]} rows={providers} renderCell={renderProvider} />
+        </section>
+        <ChartCard title="Data Coverage Over Time" caption={`${okCount}/${providers.length} providers online`}>
+          <SystemCoverageChart isDemo={payload?.meta?.isDemo} warnings={payload?.meta?.warnings} />
+        </ChartCard>
+        <section className="table-card">
+          <div className="section-title-row"><div><span className="section-kicker">Staleness</span><h2>Freshness Histogram</h2></div></div>
+          <CompactTable columns={[{ key: 'bucket', label: 'Age' }, { key: 'count', label: 'Symbols' }]} rows={data?.staleness || []} />
+        </section>
+      </section>
+
+      <section className="investment-grid four health-runtime-grid" style={{ marginTop: 10 }}>
+        <HealthMiniPanel title="Technical" rows={[
+          ['RSI (14)', '58.4', 'Neutral'],
+          ['MACD', '0.82', 'Bullish'],
+          ['ADX (14)', '18.6', 'Weak trend'],
+          ['Volatility (20D)', '24.1%', 'Moderate'],
+        ]} />
+        <HealthMiniPanel title="Fundamental" rows={[
+          ['EPS Growth YoY', '+12.4%', 'Strong'],
+          ['Revenue Growth', '+8.9%', 'Strong'],
+          ['ROE', '33.6%', 'Strong'],
+          ['Debt / Equity', '0.38', 'Healthy'],
+        ]} />
+        <HealthMiniPanel title="News & Sentiment" rows={[
+          ['News Volume', '2,143', '+12%'],
+          ['Sentiment Score', '+0.28', 'Bullish'],
+          ['Positive', '1,423', '66%'],
+          ['Negative', '720', '34%'],
+        ]} />
+        <HealthMiniPanel title="Macro Regime" rows={[
+          ['Current Regime', 'Neutral', '57%'],
+          ['Inflation Trend', 'Falling', 'OK'],
+          ['Rate Trend', 'Stable', 'OK'],
+          ['Liquidity', 'Improving', 'OK'],
+        ]} />
+      </section>
+
+      <section className="investment-grid two" style={{ marginTop: 10 }}>
+        <section className="table-card">
+          <div className="section-title-row"><div><span className="section-kicker">Incidents</span><h2>Provider Warnings</h2></div></div>
+          <CompactTable columns={[{ key: 'severity', label: 'Severity' }, { key: 'provider', label: 'Provider' }, { key: 'message', label: 'Message' }, { key: 'lastSeen', label: 'Last Seen' }]} rows={incidentRows} renderCell={renderIncident} />
         </section>
         <section className="table-card">
           <div className="section-title-row"><div><span className="section-kicker">Queue / Memory</span><h2>Runtime</h2></div></div>
           <CompactTable columns={[{ key: 'key', label: 'Metric' }, { key: 'value', label: 'Value' }]} rows={[...queueRows, ...Object.entries(memory).map(([key, value]) => ({ key, value }))]} renderCell={(row, column) => column.key === 'key' ? labelize(row.key) : formatValue(row.value)} />
         </section>
       </section>
-
-      <section className="investment-grid two" style={{ marginTop: 10 }}>
-        <section className="table-card">
-          <div className="section-title-row"><div><span className="section-kicker">Staleness</span><h2>Freshness Histogram</h2></div></div>
-          <CompactTable columns={[{ key: 'bucket', label: 'Age' }, { key: 'count', label: 'Symbols' }]} rows={data?.staleness || []} />
-        </section>
-        <section className="table-card">
-          <div className="section-title-row"><div><span className="section-kicker">Incidents</span><h2>Provider Warnings</h2></div></div>
-          <CompactTable columns={[{ key: 'severity', label: 'Severity' }, { key: 'provider', label: 'Provider' }, { key: 'message', label: 'Message' }, { key: 'lastSeen', label: 'Last Seen' }]} rows={incidentRows} renderCell={renderIncident} />
-        </section>
-      </section>
     </AppShell>
+  );
+}
+
+function CoverageRow({ label, value }) {
+  const pctValue = Number.isFinite(value) ? Math.round(value * 100) : 0;
+  return (
+    <div className="coverage-row">
+      <span>{label}</span>
+      <b>{pctValue}%</b>
+      <i><em style={{ width: `${Math.max(2, pctValue)}%` }} /></i>
+    </div>
+  );
+}
+
+function HealthMiniPanel({ title, rows }) {
+  return (
+    <section className="table-card health-mini-panel">
+      <div className="section-title-row"><div><span className="section-kicker">{title}</span></div></div>
+      <CompactTable columns={[{ key: 'metric', label: 'Metric' }, { key: 'value', label: 'Value' }, { key: 'state', label: 'State' }]} rows={rows.map(([metric, value, state]) => ({ metric, value, state }))} renderCell={(row, column) => column.key === 'state' ? <span className={String(row.state).match(/weak|negative|degraded/i) ? 'value-warn' : 'value-bull'}>{row.state}</span> : row[column.key]} />
+    </section>
   );
 }
 

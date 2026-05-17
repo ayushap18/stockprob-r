@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useState } from 'react';
 import AppShell from '../components/ui/AppShell.jsx';
 import ChartCard from '../components/ui/ChartCard.jsx';
 import CompactTable from '../components/ui/CompactTable.jsx';
-import MetricCard from '../components/ui/MetricCard.jsx';
 import StatusBadge from '../components/ui/StatusBadge.jsx';
 import { RankingScatterChart, SectorHeatmap } from '../components/charts/index.js';
 import { fetchRankings, fetchSimilarStocks } from '../lib/rankingApi.js';
@@ -43,7 +42,6 @@ export default function RankingsPage() {
   }, [payload?.data, query, sector, minProbability, maxRisk, minConfidence, freshness, sortKey]);
 
   const sectors = useMemo(() => ['All', ...new Set((payload?.data || []).map((row) => row.sector))], [payload?.data]);
-  const leaders = rows.slice(0, 4);
   const groups = useMemo(() => ({
     bullish: [...rows].sort((a, b) => b.probability - a.probability).slice(0, 3),
     lowRisk: [...rows].sort((a, b) => a.risk - b.risk).slice(0, 3),
@@ -87,45 +85,16 @@ export default function RankingsPage() {
 
       {payload?.meta?.warnings?.length ? <section className="warning-strip">{payload.meta.warnings.map((warning) => <span key={warning}>{warning}</span>)}</section> : null}
 
-      <section className="investment-grid kpi-strip">
-        {leaders.map((row) => (
-          <MetricCard key={row.ticker} label={row.ticker} value={pct(row.probability)} caption={`${signedPct(row.expectedExcessReturn)} excess`} tone={row.probability >= 0.55 ? 'bull' : row.probability < 0.48 ? 'bear' : 'warn'} />
-        ))}
-      </section>
-
-      <section className="investment-grid two" style={{ marginTop: 10 }}>
-        <ChartCard title="Ranking Scatter" caption="Probability vs expected return">
-          <RankingScatterChart data={rows} isDemo={payload?.meta?.isDemo} />
-        </ChartCard>
-        <ChartCard title="Sector Heatmap" caption="Probability / expected / risk">
-          <SectorHeatmap data={rows} isDemo={payload?.meta?.isDemo} />
-        </ChartCard>
-      </section>
-
-      <section className="investment-grid four screen-bottom-grid" style={{ marginTop: 10 }}>
-        <RankingPod title="Top Bullish" rows={groups.bullish} valueKey="probability" />
-        <RankingPod title="Low Risk" rows={groups.lowRisk} valueKey="risk" invert />
-        <RankingPod title="High Confidence" rows={groups.confidence} valueKey="confidence" />
-        <RankingPod title="Under Pressure" rows={groups.pressure} valueKey="expectedExcessReturn" bearish />
-      </section>
-
-      <section className="chart-card" style={{ marginTop: 10 }}>
-        <div className="section-title-row">
-          <div><span className="section-kicker">Similarity Map</span><h2>Related to {base}</h2></div>
-        </div>
-        <div className="suggestions-grid">
-          {similar.map((row) => <RelatedCard key={row.ticker} row={row} />)}
-        </div>
-      </section>
-
-      <section className="table-card" style={{ marginTop: 10 }}>
+      <section className="table-card screen-primary-table">
         <div className="section-title-row">
           <div><span className="section-kicker">Ranked Universe</span><h2>{loading ? 'Loading...' : 'Comparable Results'}</h2></div>
+          <span className="source-badge">Universe 3,214 stocks</span>
         </div>
         <CompactTable
           columns={[
             { key: 'rank', label: '#' },
             { key: 'ticker', label: 'Ticker' },
+            { key: 'company', label: 'Company' },
             { key: 'sector', label: 'Sector' },
             { key: 'probability', label: 'P(out)' },
             { key: 'expectedReturn', label: 'Exp' },
@@ -140,6 +109,33 @@ export default function RankingsPage() {
           rows={rows}
           renderCell={renderCell}
         />
+      </section>
+
+      <section className="investment-grid ranking-main-grid" style={{ marginTop: 10 }}>
+        <ChartCard title="Ranking Map" caption="Expected return vs probability">
+          <RankingScatterChart data={rows} isDemo={payload?.meta?.isDemo} />
+        </ChartCard>
+        <ChartCard title="Sector Heatmap" caption="Avg expected return">
+          <SectorHeatmap data={rows} isDemo={payload?.meta?.isDemo} />
+        </ChartCard>
+        <section className="table-card">
+          <div className="section-title-row">
+            <div><span className="section-kicker">Similar Opportunities</span><h2>{base} factor match</h2></div>
+          </div>
+          <CompactTable
+            columns={[{ key: 'ticker', label: 'Ticker' }, { key: 'similarityScore', label: 'Similarity' }, { key: 'probability', label: 'P(out)' }, { key: 'expectedReturn', label: 'Exp' }]}
+            rows={similar.slice(0, 5)}
+            renderCell={renderRelatedRow}
+          />
+          <a className="screen-link" href={`/dashboard?ticker=${encodeURIComponent(similar[0]?.ticker || base)}`}>View more similar stocks →</a>
+        </section>
+      </section>
+
+      <section className="investment-grid four screen-bottom-grid" style={{ marginTop: 10 }}>
+        <RankingPod title="Top Bullish" rows={groups.bullish} valueKey="probability" />
+        <RankingPod title="Low Risk" rows={groups.lowRisk} valueKey="risk" invert />
+        <RankingPod title="High Confidence" rows={groups.confidence} valueKey="confidence" />
+        <RankingPod title="Under Pressure" rows={groups.pressure} valueKey="expectedExcessReturn" bearish />
       </section>
     </AppShell>
   );
@@ -163,26 +159,19 @@ function RankingPod({ title, rows, valueKey, invert = false, bearish = false }) 
   );
 }
 
-function RelatedCard({ row }) {
-  return (
-    <article className="suggestion-card">
-      <header><div><h3>{row.ticker}</h3><p>{row.company}</p></div><StatusBadge status={row.providerStatus}>{row.providerStatus}</StatusBadge></header>
-      <p>{row.similarityReason}</p>
-      <dl>
-        <div><dt>Similarity</dt><dd>{pct(row.similarityScore)}</dd></div>
-        <div><dt>P(out)</dt><dd>{pct(row.probability)}</dd></div>
-        <div><dt>Risk</dt><dd>{pct(row.risk)}</dd></div>
-      </dl>
-    </article>
-  );
-}
-
 function renderCell(row, column) {
   if (['probability', 'risk', 'confidence'].includes(column.key)) return pct(row[column.key]);
   if (['expectedReturn', 'expectedExcessReturn', 'past1mReturn', 'past3mReturn', 'past1yReturn'].includes(column.key)) return <span className={row[column.key] >= 0 ? 'value-bull' : 'value-bear'}>{signedPct(row[column.key])}</span>;
   if (column.key === 'providerStatus') return <StatusBadge status={row.providerStatus}>{row.providerStatus}</StatusBadge>;
   if (column.key === 'ticker') return <strong>{row.ticker}</strong>;
   return row[column.key];
+}
+
+function renderRelatedRow(row, column) {
+  if (column.key === 'ticker') return <strong>{row.ticker}</strong>;
+  if (['probability', 'similarityScore'].includes(column.key)) return pct(row[column.key]);
+  if (column.key === 'expectedReturn') return <span className={row.expectedReturn >= 0 ? 'value-bull' : 'value-bear'}>{signedPct(row.expectedReturn)}</span>;
+  return row[column.key] ?? 'n/a';
 }
 
 function pct(value) {
