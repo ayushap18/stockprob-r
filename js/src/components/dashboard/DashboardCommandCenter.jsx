@@ -41,7 +41,7 @@ export default function DashboardCommandCenter({ input, setInput, onSubmit, snap
   }, [input]);
 
   return (
-    <form className="investment-command command-center" onSubmit={onSubmit}>
+    <form className="investment-command command-center" onSubmit={(event) => { setOpen(false); onSubmit(event); }}>
       <div className="command-search-wrap">
         <span className="section-kicker">Command Center</span>
         <div className="investment-search">
@@ -51,7 +51,7 @@ export default function DashboardCommandCenter({ input, setInput, onSubmit, snap
         {open && results.length > 0 && (
           <div className="ticker-results" role="listbox">
             {results.map((row) => (
-              <button key={row.symbol} type="button" onClick={() => { setInput(row.symbol); setOpen(false); updateControl('selectedSymbol', row.symbol); }}>
+              <button key={row.symbol} type="button" onClick={() => { setInput(row.symbol); setOpen(false); }}>
                 <strong>{row.symbol}</strong><span>{row.name}</span><small>{row.sector} · {row.theme}</small>
               </button>
             ))}

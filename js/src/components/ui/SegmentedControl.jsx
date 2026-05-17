@@ -1,8 +1,8 @@
 import React from 'react';
 
-export default function SegmentedControl({ value, options = [], onChange, label }) {
+export default function SegmentedControl({ value, options = [], onChange, label, className = '' }) {
   return (
-    <div>
+    <div className={className}>
       {label && <span className="section-kicker">{label}</span>}
       <div className="segmented-control">
         {options.map((option) => {

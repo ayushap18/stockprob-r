@@ -88,9 +88,11 @@ export default function DashboardPage() {
 
       <section className="investment-grid two" style={{ marginTop: 10 }}>
         <ChartCard title="Price Action" caption="Candles + volume">
+          <ChartToolbar groups={[['1D', '5D', '1M', '3M', '6M', 'YTD', '1Y', '2Y', 'All'], ['Indicators', 'Undo', 'Redo'], ['Settings', 'Snapshot', 'Full']]} active="1Y" />
           <PriceCandlestickChart data={snapshot.candles} isDemo={live.isDemo} warnings={live.warnings} />
         </ChartCard>
         <ChartCard title={`${snapshot.symbol} vs ${controls.benchmark}`} caption="Benchmark comparison">
+          <ChartToolbar groups={[['1M', '3M', '6M', 'YTD', '1Y', '2Y', 'All'], [snapshot.symbol, controls.benchmark, 'XLK']]} active="1Y" />
           <BenchmarkComparisonChart data={snapshot.benchmark} isDemo={live.isDemo} />
         </ChartCard>
       </section>
@@ -144,4 +146,16 @@ export default function DashboardPage() {
 function renderNewsCell(row, column) {
   if (column.key === 'sentiment') return <span className={Number(row.sentiment) >= 0 ? 'value-bull' : 'value-bear'}>{Number(row.sentiment || 0).toFixed(2)}</span>;
   return row[column.key] || 'n/a';
+}
+
+function ChartToolbar({ groups = [], active }) {
+  return (
+    <div className="chart-toolbar">
+      {groups.map((group, groupIndex) => (
+        <div key={groupIndex}>
+          {group.map((item) => <button key={item} type="button" className={item === active ? 'active' : ''}>{item}</button>)}
+        </div>
+      ))}
+    </div>
+  );
 }

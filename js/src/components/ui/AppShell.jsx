@@ -1,11 +1,11 @@
 import React from 'react';
 
 const navItems = [
-  ['Dashboard', '/dashboard'],
-  ['Rankings', '/rankings'],
-  ['Backtest', '/backtest'],
-  ['Data Health', '/data-health'],
-  ['Analytics', '/analytics'],
+  ['⌘', 'Dashboard', '/dashboard'],
+  ['◎', 'Rankings', '/rankings'],
+  ['▤', 'Backtest', '/backtest'],
+  ['☷', 'Data Health', '/data-health'],
+  ['☆', 'Analytics', '/analytics'],
 ];
 
 export default function AppShell({ active = 'Dashboard', children, rightSlot }) {
@@ -20,14 +20,17 @@ export default function AppShell({ active = 'Dashboard', children, rightSlot }) 
           </span>
         </a>
         <nav className="investment-nav" aria-label="Primary">
-          {navItems.map(([label, href]) => (
-            <a key={label} className={active === label ? 'active' : ''} href={href}>{label}</a>
+          {navItems.map(([icon, label, href]) => (
+            <a key={label} className={active === label ? 'active' : ''} href={href}><span>{icon}</span>{label}</a>
           ))}
         </nav>
         <div className="investment-actions">
-          {rightSlot}
           <a className="source-badge" href="https://github.com/ayushap18/stockprob-r" target="_blank" rel="noreferrer">GitHub</a>
           <span className="status-badge live">API</span>
+          {rightSlot}
+          <span className="top-icon">⌁</span>
+          <span className="top-icon">⚙</span>
+          <span className="top-icon">⛶</span>
         </div>
       </header>
       <section className="investment-page">{children}</section>
