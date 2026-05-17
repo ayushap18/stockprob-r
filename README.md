@@ -412,6 +412,64 @@ New connected endpoints:
 - `GET /api/monte-carlo/:symbol`
 - `GET /api/charts/system/coverage`
 
+## Backend UI Investment Dashboard
+
+Branch `backend-ui` adds a polished dark investment-platform interface on top of the connected API layer. It keeps the same math/model/provider architecture, but presents it as a compact research terminal with consistent red/green/amber status semantics.
+
+Pages:
+
+- `/dashboard?ticker=MSFT` - live connected ticker dashboard with quote, probability, risk, confidence, price/benchmark charts, Monte Carlo, feature engines, provider health, related opportunities, rankings preview, and backtest preview.
+- `/rankings?base=MSFT` - screener/ranking workspace with search, sector filter, sort controls, similar-stock cards, scatter plot, heatmap, and dense comparable table.
+- `/backtest?ticker=MSFT` - validation terminal with controls, strategy-vs-SPY metrics, equity curve, drawdown, calibration, confidence buckets, and recent signal log.
+- `/data-health` - provider/system/cache/memory page with source statuses, coverage, queue state, cache status, staleness, and runtime tables.
+- `/analytics?ticker=MSFT` - advanced chart page retained for deeper chart exploration.
+
+UI architecture:
+
+- `src/styles/theme.css` defines the investment theme tokens: dark background, graphite panels, ignite red, market green, amber warnings, and compact table/card primitives.
+- `src/components/ui/*` provides reusable `AppShell`, `PageHeader`, `MetricCard`, `ChartCard`, `StatusBadge`, `SourceBadge`, `FreshnessBadge`, `SegmentedControl`, `ControlPanel`, `LoadingSkeleton`, `EmptyState`, and `CompactTable` components.
+- `src/components/dashboard/*` now includes a command center, analysis control panel, metric strip, feature engine, external data panel, similar-stock suggestions, ranking preview, backtest preview, and data-health preview.
+- `src/lib/rankingApi.js`, `src/lib/backtestApi.js`, and `src/lib/dataHealthApi.js` call real REST endpoints first and fall back to deterministic demo data when endpoints or provider keys are unavailable.
+- `src/lib/suggestionsApi.js`, `src/lib/demoSuggestionsData.js`, and `src/lib/similarityEngine.js` provide peer and alternative-stock suggestions with sector, volatility, risk/return, momentum, quality, and confidence similarity scoring.
+- Normalizers in `src/lib/normalizeRankingData.js`, `src/lib/normalizeBacktestData.js`, and `src/lib/normalizeHealthData.js` accept messy backend shapes and return safe UI-ready records.
+- `src/lib/math/scenarios.js` and `src/lib/math/benchmarking.js` support scenario-adjusted expected return/volatility and benchmark comparison utilities.
+
+Configurable dashboard controls:
+
+- Horizon: `5D`, `10D`, `30D`, `60D`, `90D`, `180D`, `1Y`
+- Benchmark: `SPY`, `QQQ`, `DIA`, `IWM`, `XLK`
+- Scenario: base, bull, bear, high volatility, recession risk, earnings week
+- Return mode: absolute, excess, risk-adjusted
+- Probability target: profit, outperform, gain threshold, loss threshold
+- Custom gain/loss thresholds
+- Historical/implied/custom volatility assumption
+- Model/analyst/historical/custom expected return assumption
+- Compact/standard/detailed chart density
+
+Runtime behavior:
+
+- The dashboard uses REST for the initial snapshot and the existing WebSocket/SSE/polling client for live quote, probability, provider, system, and memory updates.
+- Missing provider keys show `not_configured`, `fallback`, or `demo` instead of breaking the UI.
+- Yahoo/yfinance remains labeled as an unofficial development/prototype fallback.
+- No hidden/private/paywalled scraping is used.
+
+Local run:
+
+```bash
+cd js
+npm install
+npm run dev -- --host 127.0.0.1 --port 8080
+```
+
+Validation:
+
+```bash
+cd js
+npm run check
+npm test
+npm run build
+```
+
 Database planning:
 
 - `js/db/schema.sql` includes production tables for universe, prices, fundamentals, earnings, news, filings, insiders, options, macro snapshots, derived features, predictions, Monte Carlo runs, backtest runs, provider health, job runs, and system snapshots.

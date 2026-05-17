@@ -1,81 +1,147 @@
-import React, { useMemo, useState } from 'react';
-import DashboardShell from '../components/dashboard/DashboardShell.jsx';
-import TickerSearch from '../components/dashboard/TickerSearch.jsx';
+import React, { useState } from 'react';
+import AnalysisControlPanel from '../components/dashboard/AnalysisControlPanel.jsx';
+import BacktestPreviewPanel from '../components/dashboard/BacktestPreviewPanel.jsx';
+import DashboardCommandCenter from '../components/dashboard/DashboardCommandCenter.jsx';
+import DashboardMetricStrip from '../components/dashboard/DashboardMetricStrip.jsx';
+import DataHealthPreviewPanel from '../components/dashboard/DataHealthPreviewPanel.jsx';
+import ExternalDataPanel from '../components/dashboard/ExternalDataPanel.jsx';
+import FeatureEnginePanel from '../components/dashboard/FeatureEnginePanel.jsx';
+import RankingPreviewPanel from '../components/dashboard/RankingPreviewPanel.jsx';
+import SimilarStocksPanel from '../components/dashboard/SimilarStocksPanel.jsx';
 import {
-  BacktestDrawdownChart,
-  BacktestEquityCurve,
-  FeatureImportanceChart,
-  MacroRegimeChart,
+  BenchmarkComparisonChart,
+  ExcessReturnChart,
   MonteCarloFanChart,
   MonteCarloHistogram,
   MonteCarloRiskCards,
-  NewsSentimentChart,
   PriceCandlestickChart,
   ProbabilityTrendChart,
-  ProviderHealthChart,
-  RankingScatterChart,
+  RelativeStrengthChart,
   RiskConfidenceChart,
-  SectorHeatmap,
-  SpyComparisonChart,
-  SystemCoverageChart,
+  ScenarioComparisonChart,
+  ThresholdProbabilityChart,
+  VolumeChart,
 } from '../components/charts/index.js';
+import AppShell from '../components/ui/AppShell.jsx';
+import ChartCard from '../components/ui/ChartCard.jsx';
+import CompactTable from '../components/ui/CompactTable.jsx';
+import LoadingSkeleton from '../components/ui/LoadingSkeleton.jsx';
+import StatusBadge from '../components/ui/StatusBadge.jsx';
 import { useDashboardLiveData } from '../hooks/useDashboardLiveData.js';
+import { useDashboardState, useScenarioSimulation } from '../hooks/useDashboardState.js';
 
 export default function DashboardPage() {
   const initialTicker = new URLSearchParams(window.location.search).get('ticker') || 'MSFT';
   const [input, setInput] = useState(initialTicker.toUpperCase());
   const [symbol, setSymbol] = useState(initialTicker.toUpperCase());
-  const live = useDashboardLiveData([symbol, 'SPY', 'QQQ'], { horizonDays: 5 });
+  const { controls, updateControl, patchControls } = useDashboardState({ selectedSymbol: initialTicker.toUpperCase() });
+  const live = useDashboardLiveData([symbol, controls.benchmark, 'SPY', 'QQQ'], { horizonDays: controls.horizonDays });
   const snapshot = live.snapshot;
-  const meta = useMemo(() => ({ source: live.source, isDemo: live.isDemo, warnings: live.warnings, asOf: live.lastUpdated }), [live.source, live.isDemo, live.warnings, live.lastUpdated]);
+  const scenarioSimulation = useScenarioSimulation(snapshot, controls);
 
   function submit(event) {
     event.preventDefault();
     const next = input.trim().toUpperCase();
-    if (/^[A-Z0-9.-]{1,12}$/.test(next)) setSymbol(next);
+    if (/^[A-Z0-9.-]{1,12}$/.test(next)) {
+      setSymbol(next);
+      patchControls({ selectedSymbol: next });
+    }
   }
 
-  if (!snapshot) return <main className="terminal-shell"><section className="state-panel loading-state"><strong>Loading connected dashboard</strong></section></main>;
+  if (!snapshot) {
+    return <AppShell active="Dashboard"><LoadingSkeleton label="Loading dashboard" /></AppShell>;
+  }
+
+  const probabilities = snapshot.probabilities || {};
+  const predictionView = {
+    technicalScore: probabilities.momentumScore || snapshot.scores?.technical,
+    features: {
+      technical: {
+        rsi_14: snapshot.technicals?.rsi_14,
+        volume_z_score: snapshot.technicals?.volume_z_score,
+        beta_vs_spy: snapshot.technicals?.beta_to_spy || snapshot.technicals?.beta_vs_spy,
+        sector_relative_strength: snapshot.technicals?.relative_strength_vs_spy,
+        mean_reversion_score: snapshot.technicals?.mean_reversion_score,
+      },
+      fundamental: {
+        revenue_growth_yoy: snapshot.fundamentals?.revenueGrowth,
+        eps_growth_yoy: snapshot.fundamentals?.epsGrowth,
+        gross_margin: snapshot.fundamentals?.grossMargin,
+        net_margin: snapshot.fundamentals?.netMargin,
+        return_on_equity: snapshot.fundamentals?.roe,
+        return_on_invested_capital: snapshot.fundamentals?.roic,
+        balance_sheet_score: 1 - (snapshot.fundamentals?.debtToEquity || 0.42) / 2,
+        valuation_score: snapshot.scores?.fundamental,
+      },
+    },
+  };
+  const warnings = [...new Set([...(live.warnings || []), ...(live.isDemo ? ['Demo fallback active'] : [])])].slice(0, 4);
+  const expectedAnnual = Math.max(-0.6, Math.min(0.8, Number(probabilities.expectedReturn || 0) * (252 / Math.max(1, Number(controls.horizonDays) || 5))));
+  const volatilityAnnual = Math.max(0.08, Math.min(1.4, Number(snapshot.technicals?.volatility_20d || probabilities.riskScore || 0.24)));
 
   return (
-    <main className="terminal-shell analytics-shell">
-      <section className="analytics-layout">
-        <TickerSearch value={input} onChange={setInput} onSubmit={submit} />
-        <DashboardShell snapshot={snapshot} meta={meta}>
-          <section className="analytics-grid halves">
-            <PriceCandlestickChart data={snapshot.candles} isDemo={live.isDemo} warnings={live.warnings} />
-            <SpyComparisonChart data={snapshot.benchmark} isDemo={live.isDemo} />
-          </section>
-          <section className="analytics-grid thirds">
-            <ProbabilityTrendChart data={snapshot.probabilityHistory} isDemo={live.isDemo} />
-            <RiskConfidenceChart data={snapshot.probabilityHistory} isDemo={live.isDemo} />
-            <FeatureImportanceChart data={snapshot.features} isDemo={live.isDemo} />
-          </section>
-          <section className="analytics-grid two-one">
-            <MonteCarloFanChart simulation={snapshot.monteCarlo} isDemo={live.isDemo} />
-            <MonteCarloRiskCards simulation={snapshot.monteCarlo} probabilityOutperformSpy={snapshot.probabilities.probabilityOutperformSpy} isDemo={live.isDemo} />
-          </section>
-          <section className="analytics-grid halves">
-            <MonteCarloHistogram simulation={snapshot.monteCarlo} isDemo={live.isDemo} />
-            <NewsSentimentChart prediction={snapshot.probabilities} trend={snapshot.sentiment} isDemo={live.isDemo} />
-          </section>
-          <section className="analytics-grid halves">
-            <MacroRegimeChart data={snapshot.macro} isDemo={live.isDemo} />
-            <ProviderHealthChart data={snapshot.providerHealth} isDemo={live.isDemo} />
-          </section>
-          <section className="analytics-grid single">
-            <SystemCoverageChart isDemo={live.isDemo} warnings={live.warnings} />
-          </section>
-          <section className="analytics-grid halves">
-            <SectorHeatmap data={snapshot.rankings} isDemo={live.isDemo} />
-            <RankingScatterChart data={snapshot.rankings} isDemo={live.isDemo} />
-          </section>
-          <section className="analytics-grid halves">
-            <BacktestEquityCurve data={snapshot.backtest.equity} isDemo={live.isDemo} />
-            <BacktestDrawdownChart data={snapshot.backtest.drawdown} isDemo={live.isDemo} />
-          </section>
-        </DashboardShell>
+    <AppShell active="Dashboard" rightSlot={<StatusBadge status={live.status}>{live.status || 'live'}</StatusBadge>}>
+      <DashboardCommandCenter input={input} setInput={setInput} onSubmit={submit} snapshot={snapshot} live={live} controls={controls} updateControl={updateControl} />
+      {warnings.length > 0 && <section className="warning-strip">{warnings.map((warning) => <span key={warning}>{warning}</span>)}</section>}
+      <AnalysisControlPanel controls={controls} updateControl={updateControl} />
+      <DashboardMetricStrip snapshot={snapshot} controls={controls} simulation={scenarioSimulation} />
+
+      <section className="investment-grid two" style={{ marginTop: 10 }}>
+        <ChartCard title="Price Action" caption="Candles + volume">
+          <PriceCandlestickChart data={snapshot.candles} isDemo={live.isDemo} warnings={live.warnings} />
+        </ChartCard>
+        <ChartCard title={`${snapshot.symbol} vs ${controls.benchmark}`} caption="Benchmark comparison">
+          <BenchmarkComparisonChart data={snapshot.benchmark} isDemo={live.isDemo} />
+        </ChartCard>
       </section>
-    </main>
+
+      <section className="investment-grid three" style={{ marginTop: 10 }}>
+        <ChartCard title="Volume" caption="Liquidity confirmation"><VolumeChart data={snapshot.candles} isDemo={live.isDemo} /></ChartCard>
+        <ChartCard title="Relative Strength" caption={`Spread vs ${controls.benchmark}`}><RelativeStrengthChart data={snapshot.benchmark} benchmark={controls.benchmark} isDemo={live.isDemo} /></ChartCard>
+        <ChartCard title="Excess Return" caption="Return above benchmark"><ExcessReturnChart data={snapshot.benchmark} benchmark={controls.benchmark} isDemo={live.isDemo} /></ChartCard>
+      </section>
+
+      <section className="investment-grid three" style={{ marginTop: 10 }}>
+        <ChartCard title="Probability Trend" caption="Threshold at 50%"><ProbabilityTrendChart data={snapshot.probabilityHistory} isDemo={live.isDemo} /></ChartCard>
+        <ChartCard title="Risk / Confidence" caption="Model stability"><RiskConfidenceChart data={snapshot.probabilityHistory} isDemo={live.isDemo} /></ChartCard>
+        <ChartCard title="Threshold Probability" caption="Custom gain/loss targets"><ThresholdProbabilityChart simulation={scenarioSimulation} gainThreshold={controls.gainThreshold} lossThreshold={controls.lossThreshold} isDemo={live.isDemo} /></ChartCard>
+      </section>
+
+      <section className="investment-grid sidebar" style={{ marginTop: 10 }}>
+        <ChartCard title="Monte Carlo Simulation" caption={`${controls.horizonDays}D · ${controls.scenario}`}>
+          <MonteCarloFanChart simulation={scenarioSimulation} isDemo={live.isDemo} />
+        </ChartCard>
+        <div className="investment-grid">
+          <MonteCarloRiskCards simulation={scenarioSimulation} probabilityOutperformSpy={probabilities.probabilityOutperformSpy} isDemo={live.isDemo} />
+          <ChartCard title="Final Return Distribution" caption="VaR / CVaR aware"><MonteCarloHistogram simulation={scenarioSimulation} isDemo={live.isDemo} /></ChartCard>
+        </div>
+      </section>
+
+      <section className="investment-grid two" style={{ marginTop: 10 }}>
+        <ChartCard title="Scenario Comparison" caption="Expected return and volatility assumptions"><ScenarioComparisonChart expectedReturn={expectedAnnual} volatility={volatilityAnnual} isDemo={live.isDemo} /></ChartCard>
+        <ExternalDataPanel providers={snapshot.providerHealth} currentSource={live.source || 'fallback'} />
+      </section>
+
+      <FeatureEnginePanel snapshot={snapshot} predictionView={predictionView} isDemo={live.isDemo} />
+      <section style={{ marginTop: 10 }}><SimilarStocksPanel symbol={symbol} snapshot={snapshot} /></section>
+
+      <section className="investment-grid two" style={{ marginTop: 10 }}>
+        <RankingPreviewPanel rows={snapshot.rankings} />
+        <BacktestPreviewPanel backtest={snapshot.backtest} isDemo={live.isDemo} />
+      </section>
+
+      <section className="investment-grid two" style={{ marginTop: 10 }}>
+        <DataHealthPreviewPanel providers={snapshot.providerHealth} systemHealth={snapshot.systemHealth} memoryHealth={snapshot.memoryHealth} />
+        <section className="table-card">
+          <div className="section-title-row"><div><span className="section-kicker">Recent News</span><h2>Catalysts</h2></div></div>
+          <CompactTable columns={[{ key: 'title', label: 'Headline' }, { key: 'sentiment', label: 'Score' }, { key: 'source', label: 'Source' }]} rows={snapshot.news || []} renderCell={renderNewsCell} />
+        </section>
+      </section>
+    </AppShell>
   );
+}
+
+function renderNewsCell(row, column) {
+  if (column.key === 'sentiment') return <span className={Number(row.sentiment) >= 0 ? 'value-bull' : 'value-bear'}>{Number(row.sentiment || 0).toFixed(2)}</span>;
+  return row[column.key] || 'n/a';
 }

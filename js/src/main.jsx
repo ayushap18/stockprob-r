@@ -1,6 +1,7 @@
 import React, { Component, Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import './styles.css';
+import './styles/theme.css';
 import LiveProviderHealthPanel from './components/live/LiveProviderHealthPanel.jsx';
 import LiveQuoteTicker from './components/live/LiveQuoteTicker.jsx';
 import LiveStatusBadge from './components/live/LiveStatusBadge.jsx';
@@ -14,6 +15,9 @@ const views = ['Dashboard', 'Rankings', 'Backtests', 'Data Health'];
 const ChartRenderer = lazy(() => import('./charts.jsx'));
 const Analytics = lazy(() => import('./pages/Analytics.jsx'));
 const ConnectedDashboard = lazy(() => import('./pages/Dashboard.jsx'));
+const RankingsPage = lazy(() => import('./pages/Rankings.jsx'));
+const BacktestPage = lazy(() => import('./pages/Backtest.jsx'));
+const DataHealthPage = lazy(() => import('./pages/DataHealth.jsx'));
 const CLIENT_CACHE_LIMIT = 120;
 const CLIENT_CACHE = new Map();
 const CLIENT_IN_FLIGHT = new Map();
@@ -160,6 +164,27 @@ function App() {
     return (
       <Suspense fallback={<main className="terminal-shell"><section className="state-panel loading-state"><strong>Loading connected dashboard</strong></section></main>}>
         <ConnectedDashboard />
+      </Suspense>
+    );
+  }
+  if (window.location.pathname.startsWith('/rankings')) {
+    return (
+      <Suspense fallback={<main className="investment-shell"><section className="investment-page"><div className="loading-skeleton" /></section></main>}>
+        <RankingsPage />
+      </Suspense>
+    );
+  }
+  if (window.location.pathname.startsWith('/backtest')) {
+    return (
+      <Suspense fallback={<main className="investment-shell"><section className="investment-page"><div className="loading-skeleton" /></section></main>}>
+        <BacktestPage />
+      </Suspense>
+    );
+  }
+  if (window.location.pathname.startsWith('/data-health')) {
+    return (
+      <Suspense fallback={<main className="investment-shell"><section className="investment-page"><div className="loading-skeleton" /></section></main>}>
+        <DataHealthPage />
       </Suspense>
     );
   }

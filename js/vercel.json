@@ -36,6 +36,12 @@
     { "source": "/analytics/(.*)", "destination": "/" },
     { "source": "/dashboard", "destination": "/" },
     { "source": "/dashboard/(.*)", "destination": "/" },
+    { "source": "/rankings", "destination": "/" },
+    { "source": "/rankings/(.*)", "destination": "/" },
+    { "source": "/backtest", "destination": "/" },
+    { "source": "/backtest/(.*)", "destination": "/" },
+    { "source": "/data-health", "destination": "/" },
+    { "source": "/data-health/(.*)", "destination": "/" },
     { "source": "/stockprob", "destination": "/" },
     { "source": "/stockprob/(.*)", "destination": "/" }
   ],
