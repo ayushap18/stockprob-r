@@ -49,7 +49,7 @@
   grid-template-columns: minmax(210px, 1fr) auto minmax(220px, 1fr);
   gap: 14px;
   align-items: center;
-  padding: 8px 10px;
+  padding: 5px 10px;
   border-bottom: 1px solid var(--border);
   background: rgba(5, 6, 8, 0.9);
   backdrop-filter: blur(18px);
@@ -65,8 +65,8 @@
 .investment-brand-mark {
   display: grid;
   place-items: center;
-  width: 36px;
-  height: 36px;
+  width: 32px;
+  height: 32px;
   border: 1px solid rgba(255, 45, 85, 0.38);
   border-radius: 8px;
   color: var(--ignite);
@@ -152,18 +152,18 @@
 .investment-page {
   position: relative;
   z-index: 1;
-  width: min(1640px, 100%);
+  width: 100%;
   margin: 0 auto;
   padding: 8px 9px 10px;
 }
 
 .investment-command {
   display: grid;
-  grid-template-columns: minmax(260px, 390px) 1fr auto;
+  grid-template-columns: minmax(280px, 390px) 1fr auto;
   gap: 12px;
   align-items: center;
-  padding: 8px 10px;
-  margin-bottom: 6px;
+  padding: 6px 10px;
+  margin-bottom: 5px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: rgba(16, 19, 26, 0.82);
@@ -223,20 +223,47 @@
 
 .investment-search {
   display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 8px;
+  grid-template-columns: 1fr 28px;
+  gap: 0;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #0b0e14;
 }
 
 .investment-input,
 .investment-select {
   width: 100%;
-  min-height: 34px;
+  min-height: 30px;
   padding: 0 11px;
   border: 1px solid var(--border);
   border-radius: 8px;
   outline: none;
   color: var(--text-primary);
   background: #0b0e14;
+}
+
+.investment-search .investment-input {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.search-clear-button {
+  display: grid;
+  place-items: center;
+  min-height: 30px;
+  border-left: 1px solid var(--border);
+  color: var(--text-secondary);
+  background: transparent;
+  cursor: pointer;
+  font-size: 17px;
+  line-height: 1;
+}
+
+.search-clear-button:hover {
+  color: var(--text-primary);
+  background: var(--panel-elevated);
 }
 
 .investment-input:focus,
@@ -249,7 +276,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 34px;
+  min-height: 30px;
   padding: 0 13px;
   border: 1px solid rgba(255, 45, 85, 0.42);
   border-radius: 8px;
@@ -296,6 +323,15 @@
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
+.investment-grid.terminal-six {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+
+.investment-grid.terminal-five {
+  grid-template-columns: minmax(220px, 0.92fr) minmax(260px, 1.08fr) minmax(250px, 1.08fr) minmax(310px, 1.22fr) minmax(220px, 0.92fr);
+  align-items: stretch;
+}
+
 .investment-grid.sidebar {
   grid-template-columns: minmax(0, 1.7fr) minmax(320px, 0.8fr);
 }
@@ -319,6 +355,12 @@
   padding: 9px;
 }
 
+.terminal-six .chart-card,
+.terminal-five .chart-card,
+.terminal-five .table-card {
+  padding: 8px;
+}
+
 .chart-card > .chart-shell,
 .chart-card .chart-shell,
 .investment-card .chart-shell {
@@ -334,8 +376,8 @@
 }
 
 .metric-card {
-  min-height: 88px;
-  padding: 8px 9px;
+  min-height: 76px;
+  padding: 7px 9px;
 }
 
 .metric-label,
@@ -350,16 +392,16 @@
 
 .metric-card strong {
   display: block;
-  margin-top: 6px;
+  margin-top: 5px;
   color: var(--text-primary);
-  font-size: clamp(18px, 1.42vw, 29px);
+  font-size: clamp(16px, 1.22vw, 24px);
   line-height: 1;
   overflow-wrap: normal;
 }
 
 .metric-card small {
   display: block;
-  margin-top: 6px;
+  margin-top: 4px;
   color: var(--text-muted);
   font-size: 10px;
   line-height: 1.18;
@@ -389,14 +431,14 @@
   gap: 10px;
   align-items: flex-start;
   justify-content: space-between;
-  margin-bottom: 7px;
+  margin-bottom: 6px;
 }
 
 .chart-title-row h2,
 .section-title-row h2 {
   margin: 2px 0 0;
   color: var(--text-primary);
-  font-size: 14px;
+  font-size: 13px;
   line-height: 1.2;
 }
 
@@ -517,6 +559,34 @@
   gap: 10px;
 }
 
+.terminal-five .suggestions-grid {
+  grid-template-columns: 1fr;
+  gap: 6px;
+}
+
+.terminal-five .suggestion-card {
+  grid-template-columns: 1fr;
+  gap: 5px;
+  padding: 7px;
+}
+
+.terminal-five .suggestion-card:nth-child(n + 4) {
+  display: none;
+}
+
+.terminal-five .suggestion-card h3 {
+  font-size: 13px;
+}
+
+.terminal-five .suggestion-card p,
+.terminal-five .suggestion-card .source-badge {
+  display: none;
+}
+
+.terminal-five .suggestion-card dl {
+  gap: 5px;
+}
+
 .suggestion-card header {
   display: flex;
   justify-content: space-between;
@@ -562,8 +632,8 @@
   flex-wrap: wrap;
   gap: 8px;
   align-items: center;
-  padding: 7px 10px;
-  margin-bottom: 6px;
+  padding: 4px 10px;
+  margin-bottom: 5px;
   border: 1px solid rgba(245, 165, 36, 0.35);
   border-radius: 8px;
   color: #ffd998;
@@ -583,8 +653,8 @@
 }
 
 .segmented-control button {
-  min-height: 25px;
-  padding: 0 8px;
+  min-height: 20px;
+  padding: 0 7px;
   border-radius: 6px;
   color: var(--text-secondary);
   background: transparent;
@@ -601,8 +671,8 @@
 .control-panel,
 .page-header,
 .empty-state {
-  padding: 8px 10px 9px;
-  margin-bottom: 7px;
+  padding: 6px 10px;
+  margin-bottom: 5px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: rgba(16, 19, 26, 0.88);
@@ -611,8 +681,12 @@
 .control-panel-grid {
   display: grid;
   grid-template-columns: repeat(14, minmax(0, 1fr));
-  gap: 7px 10px;
+  gap: 6px 10px;
   align-items: start;
+}
+
+.control-panel > .section-title-row {
+  display: none;
 }
 
 .control-span-1 { grid-column: span 1; }
@@ -633,19 +707,19 @@
 
 .control-field {
   display: grid;
-  gap: 4px;
+  gap: 3px;
 }
 
 .control-field span {
   color: var(--text-secondary);
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 900;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
 .control-field input {
-  min-height: 31px;
+  min-height: 25px;
   padding: 0 10px;
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -726,13 +800,70 @@
 }
 
 .chart-card .lw-chart-frame {
-  height: 258px;
-  min-height: 230px;
+  height: 96px !important;
+  min-height: 92px !important;
 }
 
 .chart-card .analytics-chart-frame {
-  height: 228px;
-  min-height: 210px;
+  height: 96px !important;
+  min-height: 92px !important;
+}
+
+.terminal-six .analytics-chart-frame {
+  height: 96px !important;
+  min-height: 92px !important;
+}
+
+.terminal-six .chart-footnote {
+  display: none;
+}
+
+.terminal-five > .chart-card,
+.terminal-five > .table-card {
+  max-height: 210px;
+}
+
+.terminal-five .compact-table th,
+.terminal-five .compact-table td {
+  padding: 6px 7px;
+  font-size: 11px;
+}
+
+.terminal-five .provider-grid {
+  grid-template-columns: 1fr;
+  gap: 5px;
+}
+
+.terminal-five .provider-row {
+  grid-template-columns: 1fr auto;
+  gap: 3px 8px;
+  padding: 7px;
+}
+
+.terminal-five .provider-row small:nth-of-type(2) {
+  display: none;
+}
+
+.terminal-five .mini-metric-grid {
+  gap: 5px;
+  margin-bottom: 5px;
+}
+
+.terminal-five .mini-metric-grid .metric-card {
+  min-height: 54px;
+  padding: 6px;
+}
+
+.terminal-five .mini-metric-grid .metric-card strong {
+  font-size: 15px;
+}
+
+.terminal-five .investment-grid.two {
+  grid-template-columns: 1fr;
+}
+
+.terminal-five .investment-grid.two > :nth-child(2) {
+  display: none;
 }
 
 .loading-skeleton {
@@ -770,6 +901,8 @@
   .investment-grid.two,
   .investment-grid.three,
   .investment-grid.four,
+  .investment-grid.terminal-six,
+  .investment-grid.terminal-five,
   .investment-grid.sidebar {
     grid-template-columns: 1fr;
   }

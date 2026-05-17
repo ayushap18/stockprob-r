@@ -46,7 +46,7 @@ export default function DashboardCommandCenter({ input, setInput, onSubmit, snap
         <span className="section-kicker">Command Center</span>
         <div className="investment-search">
           <input className="investment-input" value={input} onFocus={() => setOpen(true)} onChange={(event) => { setInput(event.target.value.toUpperCase()); setOpen(true); }} aria-label="Ticker or company search" />
-          <button className="investment-button" type="submit">Run</button>
+          <button className="search-clear-button" type="button" aria-label="Clear search" onClick={() => setInput('')}>×</button>
         </div>
         {open && results.length > 0 && (
           <div className="ticker-results" role="listbox">

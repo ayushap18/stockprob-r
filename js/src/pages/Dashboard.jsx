@@ -11,6 +11,7 @@ import SimilarStocksPanel from '../components/dashboard/SimilarStocksPanel.jsx';
 import {
   BenchmarkComparisonChart,
   ExcessReturnChart,
+  FeatureImportanceChart,
   MonteCarloFanChart,
   MonteCarloHistogram,
   MonteCarloRiskCards,
@@ -89,12 +90,31 @@ export default function DashboardPage() {
       <section className="investment-grid two" style={{ marginTop: 10 }}>
         <ChartCard title="Price Action" caption="Candles + volume">
           <ChartToolbar groups={[['1D', '5D', '1M', '3M', '6M', 'YTD', '1Y', '2Y', 'All'], ['Indicators', 'Undo', 'Redo'], ['Settings', 'Snapshot', 'Full']]} active="1Y" />
-          <PriceCandlestickChart data={snapshot.candles} isDemo={live.isDemo} warnings={live.warnings} />
+          <PriceCandlestickChart data={snapshot.candles} isDemo={live.isDemo} />
         </ChartCard>
         <ChartCard title={`${snapshot.symbol} vs ${controls.benchmark}`} caption="Benchmark comparison">
           <ChartToolbar groups={[['1M', '3M', '6M', 'YTD', '1Y', '2Y', 'All'], [snapshot.symbol, controls.benchmark, 'XLK']]} active="1Y" />
           <BenchmarkComparisonChart data={snapshot.benchmark} isDemo={live.isDemo} />
         </ChartCard>
+      </section>
+
+      <section className="investment-grid terminal-six" style={{ marginTop: 7 }}>
+        <ChartCard title="Probability Trend" caption="Threshold at 50%"><ProbabilityTrendChart data={snapshot.probabilityHistory} isDemo={live.isDemo} /></ChartCard>
+        <ChartCard title="Threshold Probability" caption="Custom gain/loss"><ThresholdProbabilityChart simulation={scenarioSimulation} gainThreshold={controls.gainThreshold} lossThreshold={controls.lossThreshold} isDemo={live.isDemo} /></ChartCard>
+        <ChartCard title="Risk / Confidence" caption="Model stability"><RiskConfidenceChart data={snapshot.probabilityHistory} isDemo={live.isDemo} /></ChartCard>
+        <ChartCard title="Monte Carlo" caption={`${controls.horizonDays}D fan`}>
+          <MonteCarloFanChart simulation={scenarioSimulation} isDemo={live.isDemo} height={128} />
+        </ChartCard>
+        <ChartCard title="Return Distribution" caption="VaR / CVaR"><MonteCarloHistogram simulation={scenarioSimulation} isDemo={live.isDemo} height={128} /></ChartCard>
+        <ChartCard title="Scenario Importance" caption="Top model weights"><FeatureImportanceChart data={snapshot.features} isDemo={live.isDemo} height={128} limit={8} /></ChartCard>
+      </section>
+
+      <section className="investment-grid terminal-five" style={{ marginTop: 7 }}>
+        <ExternalDataPanel providers={snapshot.providerHealth} currentSource={live.source || 'fallback'} />
+        <SimilarStocksPanel symbol={symbol} snapshot={snapshot} />
+        <RankingPreviewPanel rows={snapshot.rankings} />
+        <BacktestPreviewPanel backtest={snapshot.backtest} isDemo={live.isDemo} />
+        <DataHealthPreviewPanel providers={snapshot.providerHealth} systemHealth={snapshot.systemHealth} memoryHealth={snapshot.memoryHealth} />
       </section>
 
       <section className="investment-grid three" style={{ marginTop: 10 }}>
@@ -103,37 +123,13 @@ export default function DashboardPage() {
         <ChartCard title="Excess Return" caption="Return above benchmark"><ExcessReturnChart data={snapshot.benchmark} benchmark={controls.benchmark} isDemo={live.isDemo} /></ChartCard>
       </section>
 
-      <section className="investment-grid three" style={{ marginTop: 10 }}>
-        <ChartCard title="Probability Trend" caption="Threshold at 50%"><ProbabilityTrendChart data={snapshot.probabilityHistory} isDemo={live.isDemo} /></ChartCard>
-        <ChartCard title="Risk / Confidence" caption="Model stability"><RiskConfidenceChart data={snapshot.probabilityHistory} isDemo={live.isDemo} /></ChartCard>
-        <ChartCard title="Threshold Probability" caption="Custom gain/loss targets"><ThresholdProbabilityChart simulation={scenarioSimulation} gainThreshold={controls.gainThreshold} lossThreshold={controls.lossThreshold} isDemo={live.isDemo} /></ChartCard>
-      </section>
-
-      <section className="investment-grid sidebar" style={{ marginTop: 10 }}>
-        <ChartCard title="Monte Carlo Simulation" caption={`${controls.horizonDays}D · ${controls.scenario}`}>
-          <MonteCarloFanChart simulation={scenarioSimulation} isDemo={live.isDemo} />
-        </ChartCard>
-        <div className="investment-grid">
-          <MonteCarloRiskCards simulation={scenarioSimulation} probabilityOutperformSpy={probabilities.probabilityOutperformSpy} isDemo={live.isDemo} />
-          <ChartCard title="Final Return Distribution" caption="VaR / CVaR aware"><MonteCarloHistogram simulation={scenarioSimulation} isDemo={live.isDemo} /></ChartCard>
-        </div>
-      </section>
-
       <section className="investment-grid two" style={{ marginTop: 10 }}>
         <ChartCard title="Scenario Comparison" caption="Expected return and volatility assumptions"><ScenarioComparisonChart expectedReturn={expectedAnnual} volatility={volatilityAnnual} isDemo={live.isDemo} /></ChartCard>
-        <ExternalDataPanel providers={snapshot.providerHealth} currentSource={live.source || 'fallback'} />
+        <MonteCarloRiskCards simulation={scenarioSimulation} probabilityOutperformSpy={probabilities.probabilityOutperformSpy} isDemo={live.isDemo} />
       </section>
-
       <FeatureEnginePanel snapshot={snapshot} predictionView={predictionView} isDemo={live.isDemo} />
-      <section style={{ marginTop: 10 }}><SimilarStocksPanel symbol={symbol} snapshot={snapshot} /></section>
 
       <section className="investment-grid two" style={{ marginTop: 10 }}>
-        <RankingPreviewPanel rows={snapshot.rankings} />
-        <BacktestPreviewPanel backtest={snapshot.backtest} isDemo={live.isDemo} />
-      </section>
-
-      <section className="investment-grid two" style={{ marginTop: 10 }}>
-        <DataHealthPreviewPanel providers={snapshot.providerHealth} systemHealth={snapshot.systemHealth} memoryHealth={snapshot.memoryHealth} />
         <section className="table-card">
           <div className="section-title-row"><div><span className="section-kicker">Recent News</span><h2>Catalysts</h2></div></div>
           <CompactTable columns={[{ key: 'title', label: 'Headline' }, { key: 'sentiment', label: 'Score' }, { key: 'source', label: 'Source' }]} rows={snapshot.news || []} renderCell={renderNewsCell} />
