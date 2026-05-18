@@ -512,6 +512,82 @@ cd js
 vercel --prod
 ```
 
+## Docker and Google Cloud Run
+
+StockProb-R can also run as a Docker container on Google Cloud Run. The container builds the Vite frontend, serves `js/dist`, and runs the existing API handlers from a long-running Node HTTP server.
+
+Local Docker build:
+
+```bash
+docker build -t stockprob-r:local .
+docker run --rm -p 8080:8080 \
+  -e USE_YFINANCE=true \
+  -e ENABLE_DEMO_FALLBACK=true \
+  stockprob-r:local
+```
+
+Local production server without Docker:
+
+```bash
+cd js
+npm ci
+npm run build
+PORT=8080 npm start
+```
+
+Cloud Run runtime:
+
+- Entrypoint: `npm start`
+- Port: `8080`
+- Health endpoint: `/api/health`
+- Main app: `/dashboard?ticker=MSFT`
+- Data health: `/data-health`
+- Realtime fallback: Server-Sent Events under `/api/stream/*`
+
+GitHub Actions deployment:
+
+- Workflow: `.github/workflows/gcp-cloud-run.yml`
+- Builds the root `Dockerfile`
+- Pushes to Google Artifact Registry
+- Deploys to Cloud Run
+- Can be run manually with `workflow_dispatch`
+- Also runs on pushes to `main` when Docker/app files change
+
+Required GitHub repository variables:
+
+```text
+GCP_PROJECT_ID
+GCP_WORKLOAD_IDENTITY_PROVIDER
+GCP_SERVICE_ACCOUNT
+```
+
+Optional GitHub repository variables:
+
+```text
+GCP_ARTIFACT_REGION=us-central1
+GCP_ARTIFACT_REPOSITORY=stockprob-r
+CLOUD_RUN_SERVICE=stockprob-r
+CLOUD_RUN_REGION=us-central1
+```
+
+Recommended Cloud Run environment variables:
+
+```text
+POLYGON_API_KEY
+FMP_API_KEY
+ALPHA_VANTAGE_API_KEY
+FRED_API_KEY
+SEC_USER_AGENT
+TRADIER_API_KEY
+REDIS_URL
+DATABASE_URL
+CRON_SECRET
+USE_YFINANCE=true
+ENABLE_DEMO_FALLBACK=true
+```
+
+Do not bake `.env.local` or provider secrets into the image. The Docker ignore file excludes local env files; configure secrets through Cloud Run environment variables or Secret Manager.
+
 ## License
 
 MIT

@@ -1,0 +1,14 @@
+.git
+.github
+assets
+docs
+r
+js/.env
+js/.env.*
+js/.vercel
+js/dist
+js/node_modules
+node_modules
+npm-debug.log
+Dockerfile
+README.md
