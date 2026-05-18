@@ -27,6 +27,7 @@
     { "source": "/api/stream/provider-health", "destination": "/api/stream/provider-health.js" },
     { "source": "/api/stream/memory", "destination": "/api/stream/memory.js" },
     { "source": "/api/universe", "destination": "/api/universe.js" },
+    { "source": "/api/universe/coverage", "destination": "/api/universe/coverage.js" },
     { "source": "/api/outperform", "destination": "/api/outperform.js" },
     { "source": "/api/rank", "destination": "/api/rank.js" },
     { "source": "/api/backtest", "destination": "/api/backtest.js" },

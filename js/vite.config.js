@@ -1,5 +1,5 @@
 import react from '@vitejs/plugin-react';
-import { defineConfig } from 'vite';
+import { defineConfig, loadEnv } from 'vite';
 import { pathToFileURL } from 'node:url';
 
 const apiRoutes = new Map([
@@ -15,14 +15,20 @@ const apiRoutes = new Map([
   ['/api/system/providers', './api/system/providers.js'],
   ['/api/system/queues', './api/system/queues.js'],
   ['/api/system/staleness', './api/system/staleness.js'],
+  ['/api/system/memory', './api/system/memory.js'],
+  ['/api/universe/coverage', './api/universe/coverage.js'],
   ['/api/market/benchmarks', './api/market/benchmarks.js'],
   ['/api/stream/quotes', './api/stream/quotes.js'],
   ['/api/stream/probabilities', './api/stream/probabilities.js'],
+  ['/api/stream/dashboard', './api/stream/dashboard.js'],
   ['/api/stream/system', './api/stream/system.js'],
   ['/api/stream/provider-health', './api/stream/provider-health.js'],
+  ['/api/stream/memory', './api/stream/memory.js'],
 ]);
 
 const dynamicApiRoutes = [
+  [/^\/api\/dashboard\/([^/]+)\/snapshot$/, './api/dashboard/[symbol]/snapshot.js'],
+  [/^\/api\/dashboard\/([^/]+)\/refresh$/, './api/dashboard/[symbol]/refresh.js'],
   [/^\/api\/market\/quote\/([^/]+)$/, './api/market/quote/[symbol].js'],
   [/^\/api\/market\/ohlcv\/([^/]+)$/, './api/market/ohlcv/[symbol].js'],
   [/^\/api\/market\/technicals\/([^/]+)$/, './api/market/technicals/[symbol].js'],
@@ -32,8 +38,14 @@ const dynamicApiRoutes = [
 
 const root = process.cwd();
 
-export default defineConfig({
-  plugins: [react(), localApiPlugin()],
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, root, '');
+  for (const [key, value] of Object.entries(env)) {
+    if (process.env[key] === undefined) process.env[key] = value;
+  }
+  return {
+    plugins: [react(), localApiPlugin()],
+  };
 });
 
 function localApiPlugin() {
